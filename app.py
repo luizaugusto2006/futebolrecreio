@@ -394,7 +394,10 @@ def uploads(filename):
 @app.route("/api/config", methods=["GET"])
 def config_get():
     logo = cfg_get("logo")
-    logo_url = f"/uploads/{logo}" if logo and os.path.exists(os.path.join(UPLOAD_DIR, logo)) else None
+    if logo and os.path.exists(os.path.join(UPLOAD_DIR, logo)):
+        logo_url = f"/uploads/{logo}"
+    else:
+        logo_url = "/static/img/logo.jpg"
     return {
         "nome": cfg_get("nome", "Amigos do Recreio"),
         "horario": cfg_get("horario", "Quintas • 19:30 às 21:30"),
