@@ -79,16 +79,24 @@ async function copiarTexto(txt) {
   return ok;
 }
 
-/* ---------------- abas ---------------- */
+/* ---------------- abas / admin ---------------- */
+let abaAnterior = "churrasco";
+
+function abrirAba(nome) {
+  $$("#abas .aba-btn").forEach((x) => x.classList.toggle("ativo", x.dataset.aba === nome));
+  $$(".aba").forEach((x) => x.classList.remove("ativo"));
+  $("#aba-" + nome).classList.add("ativo");
+  if (nome !== "ajustes") abaAnterior = nome;
+  $("#btnAdmin").classList.toggle("aberto", nome === "ajustes");
+  window.scrollTo(0, 0);
+}
+
 $$("#abas .aba-btn").forEach((b) => {
-  b.addEventListener("click", () => {
-    $$("#abas .aba-btn").forEach((x) => x.classList.remove("ativo"));
-    $$(".aba").forEach((x) => x.classList.remove("ativo"));
-    b.classList.add("ativo");
-    $("#aba-" + b.dataset.aba).classList.add("ativo");
-    window.scrollTo(0, 0);
-  });
+  b.addEventListener("click", () => abrirAba(b.dataset.aba));
 });
+
+$("#btnAdmin").addEventListener("click", () => abrirAba("ajustes"));
+$("#btnFecharAdmin").addEventListener("click", () => abrirAba(abaAnterior));
 
 /* ---------------- config ---------------- */
 async function carregarConfig() {

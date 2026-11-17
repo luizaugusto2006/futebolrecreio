@@ -145,6 +145,67 @@ main { max-width: 680px; margin: 0 auto; padding: 16px 12px 64px; }
 .aba { display: none; }
 .aba.ativo { display: block; }
 
+/* ---------------- botão admin (ponto flutuante) ---------------- */
+.fab {
+  position: fixed;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  font-size: 1.3rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: linear-gradient(180deg, var(--navy-light), var(--navy));
+  color: #fff;
+  box-shadow: 0 4px 0 #0b1b38, 0 12px 24px -8px rgba(11, 27, 56, .8), inset 0 1px 0 rgba(255, 255, 255, .35);
+  transition: transform .15s ease, opacity .2s ease, box-shadow .1s ease;
+}
+.fab::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid rgba(47, 111, 208, .5);
+  animation: pulso 2.6s ease-out infinite;
+}
+@keyframes pulso {
+  0% { transform: scale(.92); opacity: 1; }
+  70%, 100% { transform: scale(1.25); opacity: 0; }
+}
+.fab:not(:disabled):active { transform: translateY(4px); box-shadow: 0 0 0 #0b1b38, 0 6px 12px -8px rgba(11, 27, 56, .8); }
+.fab.aberto { opacity: 0; pointer-events: none; transform: scale(.6); }
+
+.admin-topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 13px;
+}
+.admin-topo h2 { margin: 0; font-size: 1.15rem; font-weight: 800; }
+.admin-topo button {
+  background: linear-gradient(180deg, #ffffff, #eef2f8);
+  border: 1px solid var(--borda);
+  color: var(--navy);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 1rem;
+  box-shadow: 0 3px 0 #ccd7e5;
+}
+[data-tema="escuro"] .admin-topo button {
+  background: linear-gradient(180deg, #1d2942, #16203a);
+  color: #cfe0ff;
+  box-shadow: 0 3px 0 #0c1424;
+}
+
 /* ---------------- cards ---------------- */
 @keyframes surge {
   from { opacity: 0; transform: translateY(16px) scale(.985); }

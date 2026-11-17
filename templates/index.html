@@ -24,7 +24,6 @@
     <button class="aba-btn" data-aba="times">⚽ Times</button>
     <button class="aba-btn" data-aba="comunicados">📢 Comunicados</button>
     <button class="aba-btn" data-aba="fotos">📷 Fotos</button>
-    <button class="aba-btn" data-aba="ajustes">⚙️ Ajustes</button>
   </nav>
 
   <main>
@@ -154,8 +153,12 @@
       </div>
     </section>
 
-    <!-- ============================ AJUSTES ============================ -->
+    <!-- ============================ ADMIN / AJUSTES ============================ -->
     <section class="aba" id="aba-ajustes">
+      <div class="admin-topo">
+        <h2>⚙️ Administração</h2>
+        <button id="btnFecharAdmin" type="button" title="Fechar">✕</button>
+      </div>
       <div class="card">
         <h2>Identidade</h2>
         <form id="formConfig">
@@ -205,6 +208,8 @@
       </div>
     </section>
   </main>
+
+  <button id="btnAdmin" class="fab" title="Administração" aria-label="Administração">⚙️</button>
 
   <div id="lightbox" class="lightbox" hidden>
     <button class="fechar" id="lightboxFechar">✕</button>
