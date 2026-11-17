@@ -250,34 +250,6 @@ async function removerChurrasco(id) {
   }
 }
 
-/* ---------------- extras (quem leva o quê) ---------------- */
-async function carregarExtras() {
-  const d = await api("GET", "/api/extras");
-  const ul = $("#listaExtras");
-  ul.innerHTML = "";
-  if (!d.extras.length) ul.innerHTML = '<li class="vazio">Nada anotado ainda.</li>';
-  d.extras.forEach((x) => {
-    const li = document.createElement("li");
-    const span = document.createElement("span");
-    span.textContent = x.texto;
-    const btn = document.createElement("button");
-    btn.className = "remover";
-    btn.textContent = "✕";
-    btn.onclick = async () => { await api("DELETE", "/api/extras/" + x.id); carregarExtras(); };
-    li.append(span, btn);
-    ul.appendChild(li);
-  });
-}
-
-$("#formExtras").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  try {
-    await api("POST", "/api/extras", { texto: $("#extraTexto").value });
-    $("#extraTexto").value = "";
-    await carregarExtras();
-  } catch (_) {}
-});
-
 /* ---------------- jogadores ---------------- */
 async function carregarJogadores() {
   const d = await api("GET", "/api/jogadores");
@@ -601,7 +573,6 @@ async function iniciar() {
   await carregarConfig();
   await Promise.all([
     carregarChurrasco(),
-    carregarExtras(),
     carregarJogadores(),
     carregarGeracao(),
     carregarComunicados(),

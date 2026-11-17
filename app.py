@@ -89,11 +89,6 @@ def init_db():
             arquivo TEXT NOT NULL,
             criado_em TEXT NOT NULL
         );
-        CREATE TABLE IF NOT EXISTS extras(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            texto TEXT NOT NULL,
-            criado_em TEXT NOT NULL
-        );
         CREATE TABLE IF NOT EXISTS config(
             chave TEXT PRIMARY KEY,
             valor TEXT NOT NULL
@@ -596,33 +591,6 @@ def churrasco_delete(cid):
     db.execute("DELETE FROM churrasco WHERE id=? AND quinta=?", (cid, quinta.isoformat()))
     db.commit()
     return dados_churrasco(quinta)
-
-
-# ---------------------------------------------------------------- extras (quem leva o quê)
-@app.route("/api/extras", methods=["GET"])
-def extras_get():
-    rows = get_db().execute("SELECT * FROM extras ORDER BY id").fetchall()
-    return {"extras": [{"id": r["id"], "texto": r["texto"]} for r in rows]}
-
-
-@app.route("/api/extras", methods=["POST"])
-def extras_post():
-    data = request.get_json(silent=True) or {}
-    texto = str(data.get("texto", "")).strip()
-    if not texto:
-        return jsonify(erro="Escreva o item."), 400
-    db = get_db()
-    db.execute("INSERT INTO extras(texto, criado_em) VALUES(?,?)", (texto[:80], agora_iso()))
-    db.commit()
-    return jsonify(ok=True)
-
-
-@app.route("/api/extras/<int:eid>", methods=["DELETE"])
-def extras_delete(eid):
-    db = get_db()
-    db.execute("DELETE FROM extras WHERE id=?", (eid,))
-    db.commit()
-    return jsonify(ok=True)
 
 
 # ---------------------------------------------------------------- comunicados
