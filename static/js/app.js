@@ -7,6 +7,7 @@ let jogadores = [];
 let geracao = null;
 let edicaoId = null;
 let fotoSelecionada = null;
+let configAtual = null;
 
 async function api(metodo, url, body) {
   const opts = { method: metodo, headers: {} };
@@ -43,6 +44,41 @@ function hojeIso() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+function brl(v) {
+  return "R$ " + v.toFixed(2).replace(".", ",");
+}
+
+/* ---------------- tema (claro/escuro) ---------------- */
+function aplicarTema() {
+  const salvo = localStorage.getItem("tema") || "auto";
+  const escuro =
+    salvo === "escuro" ||
+    (salvo === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
+}
+aplicarTema();
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", aplicarTema);
+
+/* ---------------- copiar texto (fallback p/ http) ---------------- */
+async function copiarTexto(txt) {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(txt);
+      return true;
+    } catch (_) {}
+  }
+  const ta = document.createElement("textarea");
+  ta.value = txt;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (_) {}
+  ta.remove();
+  return ok;
+}
+
 /* ---------------- abas ---------------- */
 $$("#abas .aba-btn").forEach((b) => {
   b.addEventListener("click", () => {
@@ -57,6 +93,7 @@ $$("#abas .aba-btn").forEach((b) => {
 /* ---------------- config ---------------- */
 async function carregarConfig() {
   const c = await api("GET", "/api/config");
+  configAtual = c;
   $("#nomePelada").textContent = c.nome;
   $("#subPelada").textContent = c.horario;
   document.title = c.nome;
@@ -68,13 +105,21 @@ async function carregarConfig() {
   }
   $("#cfgNome").value = c.nome;
   $("#cfgHorario").value = c.horario;
+  $("#cfgQuota").value = parseFloat(c.quota);
+  $("#linkAcesso").textContent = location.origin;
+  return c;
 }
 
 $("#formConfig").addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
-    await api("POST", "/api/config", { nome: $("#cfgNome").value, horario: $("#cfgHorario").value });
+    await api("POST", "/api/config", {
+      nome: $("#cfgNome").value,
+      horario: $("#cfgHorario").value,
+      quota: $("#cfgQuota").value,
+    });
     await carregarConfig();
+    await carregarChurrasco();
     mostrarAviso($("#cfgAviso"), "Salvo!", true);
   } catch (err) {
     mostrarAviso($("#cfgAviso"), err.message);
@@ -112,6 +157,13 @@ async function carregarChurrasco() {
   st.classList.toggle("fechado", !d.aberto);
   $("#formChurrasco").style.display = d.aberto ? "flex" : "none";
   $("#churrascoContagem").textContent = `${d.nomes.length} confirmado${d.nomes.length === 1 ? "" : "s"}`;
+
+  const quota = parseFloat(configAtual?.quota || "30");
+  const pagos = d.nomes.filter((n) => n.pago).length;
+  $("#quotaValor").textContent = brl(quota);
+  $("#quotaTotal").textContent =
+    `Total ${brl(quota * d.nomes.length)} • ${pagos}/${d.nomes.length} pago${d.nomes.length === 1 ? "" : "s"}`;
+
   const ul = $("#listaChurrasco");
   ul.innerHTML = "";
   if (!d.nomes.length) {
@@ -120,8 +172,14 @@ async function carregarChurrasco() {
   d.nomes.forEach((n) => {
     const li = document.createElement("li");
     const span = document.createElement("span");
+    span.className = "nome";
     span.textContent = n.nome;
-    li.appendChild(span);
+    const pagar = document.createElement("button");
+    pagar.className = "pagar" + (n.pago ? " pago" : "");
+    pagar.textContent = n.pago ? "✓ Pago" : "Pendente";
+    pagar.title = "Alternar pagamento da quota";
+    pagar.onclick = () => alternarPagamento(n.id, !n.pago);
+    li.append(span, pagar);
     if (d.aberto) {
       const btn = document.createElement("button");
       btn.className = "remover";
@@ -133,6 +191,15 @@ async function carregarChurrasco() {
     ul.appendChild(li);
   });
   atualizarPrazo();
+}
+
+async function alternarPagamento(id, pago) {
+  try {
+    await api("PUT", "/api/churrasco/" + id, { pago });
+    await carregarChurrasco();
+  } catch (err) {
+    mostrarAviso($("#churrascoAviso"), err.message);
+  }
 }
 
 function atualizarPrazo() {
@@ -373,22 +440,13 @@ function textoTimes(g) {
 
 $("#btnCopiar").addEventListener("click", async () => {
   if (!geracao) return;
-  const txt = textoTimes(geracao);
-  let ok = false;
-  if (navigator.clipboard && window.isSecureContext) {
-    try { await navigator.clipboard.writeText(txt); ok = true; } catch (_) {}
-  }
-  if (!ok) {
-    const ta = document.createElement("textarea");
-    ta.value = txt;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    try { ok = document.execCommand("copy"); } catch (_) {}
-    ta.remove();
-  }
+  const ok = await copiarTexto(textoTimes(geracao));
   mostrarAviso($("#timesAviso"), ok ? "Texto copiado! Cole no grupo." : "Não foi possível copiar.", ok);
+});
+
+$("#btnCopiarLink").addEventListener("click", async () => {
+  const ok = await copiarTexto(location.origin);
+  mostrarAviso($("#cfgAviso"), ok ? "Link copiado!" : "Não foi possível copiar.", ok);
 });
 
 /* ---------------- comunicados ---------------- */
@@ -404,13 +462,17 @@ async function carregarComunicados() {
     const div = document.createElement("div");
     div.className = "com-card";
     div.innerHTML = `<div class="data">${c.data_fmt}</div><h3></h3><p></p>
-      <div class="acoes"><button>excluir</button></div>`;
+      <div class="acoes"><button class="compartilhar">compartilhar</button><button class="excluir">excluir</button></div>`;
     div.querySelector("h3").textContent = c.titulo;
     div.querySelector("p").textContent = c.texto;
-    div.querySelector("button").onclick = async () => {
+    div.querySelector(".excluir").onclick = async () => {
       if (!confirm("Excluir este comunicado?")) return;
       await api("DELETE", "/api/comunicados/" + c.id);
       await carregarComunicados();
+    };
+    div.querySelector(".compartilhar").onclick = () => {
+      const txt = `📢 *${c.titulo}*\n${c.texto}\n\n📅 ${c.data_fmt} — ${location.origin}`;
+      window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
     };
     cont.appendChild(div);
   });
@@ -521,11 +583,21 @@ if (topoEl && logoEl && window.matchMedia("(hover: hover)").matches) {
 }
 
 /* ---------------- init ---------------- */
-$("#comData").value = hojeIso();
-carregarConfig();
-carregarChurrasco();
-carregarExtras();
-carregarJogadores();
-carregarGeracao();
-carregarComunicados();
-carregarGaleria();
+async function iniciar() {
+  $("#comData").value = hojeIso();
+  $("#selTema").value = localStorage.getItem("tema") || "auto";
+  $("#selTema").addEventListener("change", (e) => {
+    localStorage.setItem("tema", e.target.value);
+    aplicarTema();
+  });
+  await carregarConfig();
+  await Promise.all([
+    carregarChurrasco(),
+    carregarExtras(),
+    carregarJogadores(),
+    carregarGeracao(),
+    carregarComunicados(),
+    carregarGaleria(),
+  ]);
+}
+iniciar();

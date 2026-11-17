@@ -39,6 +39,11 @@
           <span class="badge badge-status" id="churrascoStatus">…</span>
         </div>
         <p class="prazo" id="churrascoPrazo"></p>
+        <div class="quota-box">
+          <span>Quota: <strong id="quotaValor">R$ 30,00</strong> por pessoa</span>
+          <span id="quotaTotal">—</span>
+        </div>
+        <p class="jorgao">“O churrasco não é de graça, Porraaaa!” — Jorgão</p>
         <form id="formChurrasco" class="linha-form">
           <input id="churrascoNome" type="text" placeholder="Seu nome" maxlength="60"
                  autocomplete="name" required>
@@ -160,6 +165,9 @@
           <label>Horário
             <input id="cfgHorario" type="text" maxlength="60">
           </label>
+          <label>Quota do churrasco (R$)
+            <input id="cfgQuota" type="number" min="0" step="0.5" inputmode="decimal">
+          </label>
           <button type="submit" class="primario">Salvar</button>
         </form>
         <p class="aviso" id="cfgAviso" hidden></p>
@@ -172,10 +180,28 @@
             <input id="logoArquivo" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
           </div>
         </div>
+        <hr>
+        <h2>Aparência</h2>
+        <label>Modo
+          <select id="selTema">
+            <option value="auto">Automático (do celular)</option>
+            <option value="claro">Claro</option>
+            <option value="escuro">Escuro</option>
+          </select>
+        </label>
+        <hr>
+        <h2>Divulgar acesso</h2>
+        <div class="linha-qr">
+          <img id="qrImg" src="/api/qrcode.png" alt="QR Code do site">
+          <div>
+            <p class="muted" id="linkAcesso"></p>
+            <button type="button" id="btnCopiarLink" class="secundario">Copiar link</button>
+          </div>
+        </div>
       </div>
       <div class="card rodape">
         <p class="muted">Amigos do Recreio • sistema da pelada<br>
-        Acesse pelo Wi‑Fi: <span id="enderecoAcesso">…</span></p>
+        Endereço: <span id="enderecoAcesso">…</span></p>
       </div>
     </section>
   </main>

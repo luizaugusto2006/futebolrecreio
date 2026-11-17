@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import random
@@ -6,7 +7,7 @@ import sqlite3
 import uuid
 from datetime import datetime, time as dtime, timedelta, timezone
 
-from flask import Flask, abort, g, jsonify, render_template, request, send_from_directory
+from flask import Flask, abort, g, jsonify, render_template, request, send_file, send_from_directory
 from werkzeug.utils import secure_filename
 
 try:
@@ -100,6 +101,11 @@ def init_db():
         """
     )
     db.commit()
+    try:
+        db.execute("ALTER TABLE churrasco ADD COLUMN pago INTEGER NOT NULL DEFAULT 0")
+        db.commit()
+    except sqlite3.OperationalError:
+        pass  # coluna já existe
     db.close()
 
 
@@ -401,6 +407,7 @@ def config_get():
     return {
         "nome": cfg_get("nome", "Amigos do Recreio"),
         "horario": cfg_get("horario", "Quintas • 19:30 às 21:30"),
+        "quota": cfg_get("quota", "30"),
         "logo": logo_url,
     }
 
@@ -416,7 +423,26 @@ def config_post():
         hor = str(data["horario"]).strip()
         if hor:
             cfg_set("horario", hor[:60])
+    if "quota" in data:
+        try:
+            valor = float(str(data["quota"]).replace(",", "."))
+            if valor >= 0:
+                cfg_set("quota", f"{valor:.2f}")
+        except ValueError:
+            pass
     return config_get()
+
+
+@app.route("/api/qrcode.png")
+def qrcode_png():
+    import qrcode
+
+    url = request.url_root.rstrip("/")
+    img = qrcode.make(url)
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    buf.seek(0)
+    return send_file(buf, mimetype="image/png")
 
 
 @app.route("/api/config/logo", methods=["POST"])
@@ -514,7 +540,7 @@ def dados_churrasco(quinta):
         "quinta_fmt": quinta.strftime("%d/%m/%Y"),
         "deadline": deadline.isoformat(),
         "aberto": agora_local() < deadline,
-        "nomes": [{"id": r["id"], "nome": r["nome"]} for r in linhas],
+        "nomes": [{"id": r["id"], "nome": r["nome"], "pago": bool(r["pago"])} for r in linhas],
     }
 
 
@@ -549,6 +575,16 @@ def churrasco_post():
     )
     db.commit()
     return dados_churrasco(quinta)
+
+
+@app.route("/api/churrasco/<int:cid>", methods=["PUT"])
+def churrasco_pagamento(cid):
+    data = request.get_json(silent=True) or {}
+    pago = 1 if data.get("pago") else 0
+    db = get_db()
+    db.execute("UPDATE churrasco SET pago=? WHERE id=?", (pago, cid))
+    db.commit()
+    return jsonify(ok=True, pago=bool(pago))
 
 
 @app.route("/api/churrasco/<int:cid>", methods=["DELETE"])
