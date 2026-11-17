@@ -504,6 +504,22 @@ $("#lightboxExcluir").addEventListener("click", async () => {
   await carregarGaleria($("#fotoData").value);
 });
 
+/* ---------------- logo 3D (inclinação ao passar o mouse) ---------------- */
+const topoEl = document.querySelector(".topo");
+const logoEl = $("#logo");
+if (topoEl && logoEl && window.matchMedia("(hover: hover)").matches) {
+  topoEl.addEventListener("pointermove", (e) => {
+    const r = topoEl.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width - 0.5;
+    const py = (e.clientY - r.top) / r.height - 0.5;
+    logoEl.style.transform =
+      `perspective(340px) rotateY(${px * 18}deg) rotateX(${-py * 14}deg) rotateZ(-2deg) scale(1.06)`;
+  });
+  topoEl.addEventListener("pointerleave", () => {
+    logoEl.style.transform = "";
+  });
+}
+
 /* ---------------- init ---------------- */
 $("#comData").value = hojeIso();
 carregarConfig();
