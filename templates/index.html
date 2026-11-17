@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0e5c36">
+  <title>Amigos do Recreio</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="topo">
+    <img id="logo" class="logo" alt="" hidden>
+    <div class="marca">
+      <h1 id="nomePelada">Amigos do Recreio</h1>
+      <p id="subPelada">Quintas • 19:30 às 21:30</p>
+    </div>
+  </header>
+
+  <nav class="abas" id="abas">
+    <button class="aba-btn ativo" data-aba="churrasco">🔥 Churrasco</button>
+    <button class="aba-btn" data-aba="times">⚽ Times</button>
+    <button class="aba-btn" data-aba="comunicados">📢 Comunicados</button>
+    <button class="aba-btn" data-aba="fotos">📷 Fotos</button>
+    <button class="aba-btn" data-aba="ajustes">⚙️ Ajustes</button>
+  </nav>
+
+  <main>
+    <!-- ============================ CHURRASCO ============================ -->
+    <section class="aba ativo" id="aba-churrasco">
+      <div class="card">
+        <div class="card-topo">
+          <div>
+            <h2>Churrasco da quinta</h2>
+            <p class="muted" id="churrascoQuinta">carregando…</p>
+          </div>
+          <span class="badge badge-status" id="churrascoStatus">…</span>
+        </div>
+        <p class="prazo" id="churrascoPrazo"></p>
+        <form id="formChurrasco" class="linha-form">
+          <input id="churrascoNome" type="text" placeholder="Seu nome" maxlength="60"
+                 autocomplete="name" required>
+          <button type="submit" id="btnChurrasco">Confirmar</button>
+        </form>
+        <p class="aviso" id="churrascoAviso" hidden></p>
+        <p class="contador" id="churrascoContagem"></p>
+        <ul class="lista-nomes" id="listaChurrasco"></ul>
+      </div>
+      <div class="card">
+        <h2>Churrasqueiro / quem leva</h2>
+        <p class="muted">Anote aqui quem leva a carne, carvão, bebida…</p>
+        <form id="formExtras" class="linha-form">
+          <input id="extraTexto" type="text" placeholder="Ex.: João leva a carne" maxlength="80">
+          <button type="submit" class="secundario">Adicionar</button>
+        </form>
+        <ul class="lista-nomes" id="listaExtras"></ul>
+      </div>
+    </section>
+
+    <!-- ============================ TIMES ============================ -->
+    <section class="aba" id="aba-times">
+      <div class="card">
+        <h2>Gerar times</h2>
+        <div class="grade-form">
+          <label>Times
+            <input id="inpTimes" type="number" min="1" max="10" value="2">
+          </label>
+          <label>Jogadores por time
+            <input id="inpPorTime" type="number" min="1" max="15" value="6">
+          </label>
+        </div>
+        <label class="check">
+          <input id="chkGoleiroFixo" type="checkbox" checked>
+          Goleiro contratado fixo (times de linha)
+        </label>
+        <div class="botoes">
+          <button id="btnGerar" class="primario">Gerar times</button>
+          <button id="btnRodar" class="secundario">Rodar reservas</button>
+          <button id="btnCopiar" class="secundario">Copiar texto</button>
+        </div>
+        <p class="aviso" id="timesAviso" hidden></p>
+      </div>
+
+      <div id="resultadoTimes"></div>
+
+      <div class="card">
+        <div class="card-topo">
+          <h2>Jogadores <span class="muted" id="qtdJogadores"></span></h2>
+        </div>
+        <form id="formJogador" class="linha-form">
+          <input id="jogNome" type="text" placeholder="Nome" maxlength="60" required>
+          <select id="jogPosicao">
+            <option value="ZAG">Zagueiro</option>
+            <option value="LAT">Lateral</option>
+            <option value="VOL">Volante</option>
+            <option value="MEA">Meia</option>
+            <option value="ATA">Atacante</option>
+            <option value="GOE">Goleiro</option>
+          </select>
+          <select id="jogNota" title="Nota">
+            <option value="A">A</option>
+            <option value="B" selected>B</option>
+            <option value="C">C</option>
+            <option value="D">D</option>
+            <option value="E">E</option>
+          </select>
+          <button type="submit" id="btnJogador">Incluir</button>
+        </form>
+        <button type="button" id="btnCancelarEdicao" class="link" hidden>Cancelar edição</button>
+        <ul class="lista-jogadores" id="listaJogadores"></ul>
+      </div>
+    </section>
+
+    <!-- ============================ COMUNICADOS ============================ -->
+    <section class="aba" id="aba-comunicados">
+      <div class="card">
+        <h2>Novo comunicado</h2>
+        <form id="formComunicado">
+          <label>Data
+            <input id="comData" type="date" required>
+          </label>
+          <label>Título
+            <input id="comTitulo" type="text" maxlength="80" placeholder="Ex.: Campo fechado amanhã" required>
+          </label>
+          <label>Mensagem
+            <textarea id="comTexto" rows="3" maxlength="1000" placeholder="Escreva o aviso…" required></textarea>
+          </label>
+          <button type="submit" class="primario">Publicar</button>
+        </form>
+        <p class="aviso" id="comAviso" hidden></p>
+      </div>
+      <div id="listaComunicados"></div>
+    </section>
+
+    <!-- ============================ FOTOS ============================ -->
+    <section class="aba" id="aba-fotos">
+      <div class="card">
+        <h2>Galeria da quinta</h2>
+        <div class="linha-form">
+          <input id="fotoData" type="date">
+          <button id="btnFoto" class="primario">+ Fotos</button>
+        </div>
+        <input id="fotoArquivo" type="file" accept="image/*" multiple hidden>
+        <p class="muted" id="fotoInfo"></p>
+        <div class="grade-fotos" id="gradeFotos"></div>
+        <div class="chips" id="chipsDatas"></div>
+      </div>
+    </section>
+
+    <!-- ============================ AJUSTES ============================ -->
+    <section class="aba" id="aba-ajustes">
+      <div class="card">
+        <h2>Identidade</h2>
+        <form id="formConfig">
+          <label>Nome da pelada
+            <input id="cfgNome" type="text" maxlength="60">
+          </label>
+          <label>Horário
+            <input id="cfgHorario" type="text" maxlength="60">
+          </label>
+          <button type="submit" class="primario">Salvar</button>
+        </form>
+        <p class="aviso" id="cfgAviso" hidden></p>
+        <hr>
+        <h2>Logo</h2>
+        <div class="linha-logo">
+          <img id="logoPreview" alt="logo" hidden>
+          <div>
+            <button id="btnLogo" class="secundario">Enviar logo</button>
+            <input id="logoArquivo" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+          </div>
+        </div>
+      </div>
+      <div class="card rodape">
+        <p class="muted">Amigos do Recreio • sistema da pelada<br>
+        Acesse pelo Wi‑Fi: <span id="enderecoAcesso">…</span></p>
+      </div>
+    </section>
+  </main>
+
+  <div id="lightbox" class="lightbox" hidden>
+    <button class="fechar" id="lightboxFechar">✕</button>
+    <img id="lightboxImg" alt="">
+    <button class="excluir-foto" id="lightboxExcluir">🗑 Excluir foto</button>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

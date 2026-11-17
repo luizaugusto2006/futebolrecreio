@@ -1,0 +1,197 @@
+:root {
+  --verde: #0e5c36;
+  --verde-claro: #157a48;
+  --fundo: #eef4ef;
+  --card: #ffffff;
+  --texto: #1c2a22;
+  --muted: #6b7c72;
+  --borda: #dde7e0;
+  --amarelo: #f5b301;
+  --vermelho: #dc2626;
+  --raio: 14px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--fundo);
+  color: var(--texto);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------------- topo ---------------- */
+.topo {
+  background: linear-gradient(135deg, var(--verde), var(--verde-claro));
+  color: #fff;
+  padding: 18px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.logo { width: 54px; height: 54px; object-fit: contain; background: #fff; border-radius: 12px; padding: 4px; }
+.marca h1 { margin: 0; font-size: 1.35rem; letter-spacing: .3px; }
+.marca p { margin: 3px 0 0; font-size: .85rem; opacity: .85; }
+
+/* ---------------- abas ---------------- */
+.abas {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 8px 10px;
+  background: var(--card);
+  border-bottom: 1px solid var(--borda);
+  scrollbar-width: none;
+}
+.abas::-webkit-scrollbar { display: none; }
+.aba-btn {
+  border: 1px solid var(--borda);
+  background: #f6faf7;
+  color: var(--texto);
+  padding: 8px 13px;
+  border-radius: 999px;
+  font-size: .88rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.aba-btn.ativo { background: var(--verde); border-color: var(--verde); color: #fff; font-weight: 600; }
+
+main { max-width: 680px; margin: 0 auto; padding: 14px 12px 60px; }
+
+.aba { display: none; }
+.aba.ativo { display: block; }
+
+/* ---------------- cards ---------------- */
+.card {
+  background: var(--card);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  padding: 16px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(15, 60, 35, .05);
+}
+.card h2 { margin: 0 0 10px; font-size: 1.05rem; }
+.card-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+.card-topo h2 { margin: 0; }
+.muted { color: var(--muted); font-size: .85rem; margin: 4px 0 0; }
+
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 700;
+  background: #e7efe9;
+  color: var(--texto);
+}
+.badge-status.aberto { background: #d8f3e2; color: #0e5c36; }
+.badge-status.fechado { background: #fde8e8; color: #b91c1c; }
+
+.prazo { font-size: .85rem; color: var(--muted); margin: 4px 0 12px; }
+.contador { font-size: .85rem; font-weight: 600; color: var(--verde-claro); margin: 10px 0 4px; }
+
+/* ---------------- formulários ---------------- */
+.linha-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.linha-form input[type="text"] { flex: 1 1 160px; }
+
+input[type="text"], input[type="number"], input[type="date"], select, textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  font-size: 1rem;
+  background: #fbfdfc;
+  color: var(--texto);
+}
+textarea { resize: vertical; }
+label { display: block; font-size: .85rem; font-weight: 600; margin: 8px 0; }
+label input, label select, label textarea { margin-top: 4px; font-weight: 400; }
+
+button {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: .95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+button:disabled { opacity: .5; cursor: not-allowed; }
+.primario { background: var(--verde-claro); color: #fff; }
+.primario:active { background: var(--verde); }
+.secundario { background: #e7efe9; color: var(--verde); }
+.link { background: none; color: var(--muted); text-decoration: underline; padding: 4px; }
+.botoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.botoes button { flex: 1 1 120px; }
+
+.grade-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.check { display: flex; align-items: center; gap: 8px; font-weight: 500; margin: 10px 0 0; }
+.check input { width: 18px; height: 18px; accent-color: var(--verde-claro); }
+
+.aviso { background: #fdecec; color: #b91c1c; border-radius: 8px; padding: 8px 12px; font-size: .85rem; margin: 10px 0 0; }
+.ok-msg { background: #e3f6ec; color: #0e5c36; }
+
+/* ---------------- churrasco ---------------- */
+.lista-nomes { list-style: none; margin: 8px 0 0; padding: 0; }
+.lista-nomes li {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 12px; border: 1px solid var(--borda); border-radius: 10px;
+  margin-bottom: 6px; background: #fbfdfc; font-size: .95rem;
+}
+.lista-nomes .remover { background: none; color: var(--vermelho); font-size: 1.1rem; padding: 2px 6px; }
+.vazio { color: var(--muted); font-size: .88rem; font-style: italic; }
+
+/* ---------------- times ---------------- */
+.time-card { border-radius: var(--raio); overflow: hidden; border: 1px solid var(--borda); background: #fff; margin-bottom: 12px; }
+.time-cabeca { padding: 10px 14px; color: #fff; display: flex; justify-content: space-between; align-items: center; }
+.time-cabeca strong { font-size: 1rem; }
+.time-cabeca .media { font-size: .78rem; opacity: .9; }
+.time-card ul { list-style: none; margin: 0; padding: 6px 10px; }
+.time-card li { display: flex; align-items: center; gap: 8px; padding: 7px 6px; border-bottom: 1px dashed #edf2ee; font-size: .93rem; }
+.time-card li:last-child { border-bottom: none; }
+.num { width: 20px; text-align: right; color: var(--muted); font-size: .8rem; }
+.pos-badge { background: #edf3ef; color: #37524a; font-size: .68rem; font-weight: 700; border-radius: 6px; padding: 2px 6px; }
+.nota-badge { margin-left: auto; background: #f1f3f2; color: #4b5563; font-size: .72rem; font-weight: 700; border-radius: 6px; padding: 2px 8px; border: 1px solid #e2e6e4; }
+.reserva-cabeca { background: var(--amarelo); color: #4a3500; }
+
+.lista-jogadores { list-style: none; margin: 10px 0 0; padding: 0; }
+.lista-jogadores li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 10px; border: 1px solid var(--borda); border-radius: 10px;
+  margin-bottom: 6px; background: #fbfdfc;
+}
+.lista-jogadores .nome { flex: 1; font-size: .95rem; }
+.lista-jogadores .acoes button { background: none; padding: 2px 5px; font-size: 1rem; }
+
+/* ---------------- comunicados ---------------- */
+.com-card { background: #fff; border: 1px solid var(--borda); border-left: 4px solid var(--verde-claro); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+.com-card .data { font-size: .75rem; color: var(--muted); font-weight: 700; text-transform: uppercase; }
+.com-card h3 { margin: 4px 0 6px; font-size: 1rem; }
+.com-card p { margin: 0; font-size: .92rem; white-space: pre-wrap; }
+.com-card .acoes { text-align: right; margin-top: 6px; }
+.com-card .acoes button { background: none; color: var(--vermelho); font-size: .82rem; }
+
+/* ---------------- fotos ---------------- */
+.grade-fotos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.grade-fotos img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; cursor: pointer; background: #e7efe9; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.chip { border: 1px solid var(--borda); background: #f6faf7; border-radius: 999px; padding: 5px 11px; font-size: .8rem; cursor: pointer; }
+.chip.ativo { background: var(--verde); color: #fff; border-color: var(--verde); }
+
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; }
+.lightbox img { max-width: 100%; max-height: 78vh; border-radius: 8px; }
+.lightbox .fechar { position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,.15); color: #fff; font-size: 1.2rem; padding: 8px 14px; border-radius: 999px; }
+.lightbox .excluir-foto { margin-top: 14px; background: #b91c1c; color: #fff; }
+
+/* ---------------- ajustes ---------------- */
+.linha-logo { display: flex; align-items: center; gap: 14px; }
+.linha-logo img { width: 70px; height: 70px; object-fit: contain; background: #f3f6f4; border: 1px solid var(--borda); border-radius: 12px; padding: 6px; }
+.rodape { text-align: center; }
+hr { border: none; border-top: 1px solid var(--borda); margin: 16px 0; }
+
+@media (min-width: 560px) {
+  .grade-fotos { grid-template-columns: repeat(4, 1fr); }
+}
