@@ -4,7 +4,7 @@ import random
 import re
 import sqlite3
 import uuid
-from datetime import datetime, time as dtime, timedelta
+from datetime import datetime, time as dtime, timedelta, timezone
 
 from flask import Flask, abort, g, jsonify, render_template, request, send_from_directory
 from werkzeug.utils import secure_filename
@@ -123,15 +123,24 @@ def cfg_set(chave, valor):
 
 
 # ---------------------------------------------------------------- datas
+# servidores (ex.: PythonAnywhere) rodam em UTC -> usamos o horário de Brasília (UTC-3)
+TZ_BR = timezone(timedelta(hours=-3))
+
+
+def agora_local():
+    """Horário atual de Brasília (sem fuso, para comparar com deadlines)."""
+    return datetime.now(TZ_BR).replace(tzinfo=None)
+
+
 def proxima_quinta():
     """Quinta do próximo jogo (hoje se for quinta, senão a próxima)."""
-    hoje = datetime.now().date()
+    hoje = agora_local().date()
     return hoje + timedelta(days=(3 - hoje.weekday()) % 7)
 
 
 def quinta_passada():
     """Quinta mais recente que já aconteceu (hoje, se for quinta)."""
-    hoje = datetime.now().date()
+    hoje = agora_local().date()
     return hoje - timedelta(days=(hoje.weekday() - 3) % 7)
 
 
@@ -145,7 +154,7 @@ def parse_data(txt):
 
 
 def agora_iso():
-    return datetime.now().isoformat(timespec="seconds")
+    return agora_local().isoformat(timespec="seconds")
 
 
 # ---------------------------------------------------------------- geração de times
@@ -289,7 +298,7 @@ def gerar_times(jogadores, num_times, por_time, goleiro_fixo, seed=None):
         "reserva_media": round(sum(p["valor"] for p in reservas) / len(reservas), 1)
         if reservas
         else None,
-        "gerado_em": datetime.now().strftime("%d/%m/%Y %H:%M"),
+        "gerado_em": agora_local().strftime("%d/%m/%Y %H:%M"),
     }
     return resultado, times, reservas
 
@@ -362,7 +371,7 @@ def resposta_de_matriz(estrutura, params=None):
         if reservas
         else None,
         "params": params or {},
-        "gerado_em": datetime.now().strftime("%d/%m/%Y %H:%M"),
+        "gerado_em": agora_local().strftime("%d/%m/%Y %H:%M"),
     }
     return saida
 
@@ -501,7 +510,7 @@ def dados_churrasco(quinta):
         "quinta": quinta.isoformat(),
         "quinta_fmt": quinta.strftime("%d/%m/%Y"),
         "deadline": deadline.isoformat(),
-        "aberto": datetime.now() < deadline,
+        "aberto": agora_local() < deadline,
         "nomes": [{"id": r["id"], "nome": r["nome"]} for r in linhas],
     }
 
@@ -518,7 +527,7 @@ def churrasco_get():
 @app.route("/api/churrasco", methods=["POST"])
 def churrasco_post():
     quinta = proxima_quinta()
-    if datetime.now() >= datetime.combine(quinta, dtime(12, 0)):
+    if agora_local() >= datetime.combine(quinta, dtime(12, 0)):
         return jsonify(erro="Prazo encerrado (fecha às 12h da quinta)."), 403
     data = request.get_json(silent=True) or {}
     nome = str(data.get("nome", "")).strip()
@@ -542,7 +551,7 @@ def churrasco_post():
 @app.route("/api/churrasco/<int:cid>", methods=["DELETE"])
 def churrasco_delete(cid):
     quinta = proxima_quinta()
-    if datetime.now() >= datetime.combine(quinta, dtime(12, 0)):
+    if agora_local() >= datetime.combine(quinta, dtime(12, 0)):
         return jsonify(erro="Prazo encerrado (fecha às 12h da quinta)."), 403
     db = get_db()
     db.execute("DELETE FROM churrasco WHERE id=? AND quinta=?", (cid, quinta.isoformat()))
