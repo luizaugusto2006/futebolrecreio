@@ -182,6 +182,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .chip.ativo { background: var(--verde); color: #fff; border-color: var(--verde); }
 
 .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; }
+.lightbox[hidden] { display: none; }
 .lightbox img { max-width: 100%; max-height: 78vh; border-radius: 8px; }
 .lightbox .fechar { position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,.15); color: #fff; font-size: 1.2rem; padding: 8px 14px; border-radius: 999px; }
 .lightbox .excluir-foto { margin-top: 14px; background: #b91c1c; color: #fff; }
