@@ -58,7 +58,48 @@
     <!-- ============================ TIMES ============================ -->
     <section class="aba" id="aba-times">
       <div class="card">
+        <div class="card-topo">
+          <div>
+            <h2>Presença na pelada</h2>
+            <p class="muted" id="presQuinta">carregando…</p>
+          </div>
+          <span class="badge badge-status" id="presContagem">0</span>
+        </div>
+        <div class="linha-form">
+          <input id="presData" type="date" title="Quinta da pelada">
+          <button type="button" id="btnPresRecarregar" class="secundario">Atualizar</button>
+        </div>
+        <div class="chips" id="chipsPresenca"></div>
+        <p class="muted" id="presAjuda">Toque no nome para marcar quem foi. A geração usa só os marcados.</p>
+        <hr>
+        <h2>Visitantes</h2>
+        <form id="formVisitante" class="linha-form">
+          <input id="visNome" type="text" placeholder="Nome do visitante" maxlength="60" required>
+          <select id="visPosicao" title="Posição">
+            <option value="ZAG">Zagueiro</option>
+            <option value="LAT">Lateral</option>
+            <option value="VOL">Volante</option>
+            <option value="MEA" selected>Meia</option>
+            <option value="ATA">Atacante</option>
+            <option value="GOE">Goleiro</option>
+          </select>
+          <select id="visNota" title="Nota">
+            <option value="A">Nota A</option>
+            <option value="B">Nota B</option>
+            <option value="C" selected>Nota C</option>
+            <option value="D">Nota D</option>
+            <option value="E">Nota E</option>
+          </select>
+          <input id="visIdade" type="number" min="10" max="100" placeholder="Idade" inputmode="numeric">
+          <button type="submit" class="primario">+ Visitante</button>
+        </form>
+        <ul class="lista-nomes" id="listaVisitantes"></ul>
+        <p class="aviso" id="presAviso" hidden></p>
+      </div>
+
+      <div class="card">
         <h2>Gerar times</h2>
+        <p class="muted" id="gerarFonte">—</p>
         <div class="grade-form">
           <label>Times
             <input id="inpTimes" type="number" min="1" max="10" value="2">
@@ -74,6 +115,7 @@
         <div class="botoes">
           <button id="btnGerar" class="primario">Gerar times</button>
           <button id="btnWhats" class="secundario" disabled>📤 Enviar no WhatsApp</button>
+          <button id="btnLimpar" class="secundario perigo" disabled>🗑 Limpar times</button>
         </div>
         <p class="aviso" id="timesAviso" hidden></p>
       </div>
@@ -84,25 +126,40 @@
         <div class="card-topo">
           <h2>Jogadores <span class="muted" id="qtdJogadores"></span></h2>
         </div>
-        <form id="formJogador" class="linha-form">
-          <input id="jogNome" type="text" placeholder="Nome" maxlength="60" required>
-          <select id="jogPosicao">
-            <option value="ZAG">Zagueiro</option>
-            <option value="LAT">Lateral</option>
-            <option value="VOL">Volante</option>
-            <option value="MEA">Meia</option>
-            <option value="ATA">Atacante</option>
-            <option value="GOE">Goleiro</option>
-          </select>
-          <select id="jogNota" title="Nota">
-            <option value="A">A</option>
-            <option value="B" selected>B</option>
-            <option value="C">C</option>
-            <option value="D">D</option>
-            <option value="E">E</option>
-          </select>
-          <button type="submit" id="btnJogador">Incluir</button>
+        <form id="formJogador" class="form-jogador">
+          <div class="linha-form">
+            <input id="jogNome" type="text" placeholder="Nome" maxlength="60" required>
+            <input id="jogIdade" type="number" min="10" max="100" placeholder="Idade" inputmode="numeric" title="Idade">
+            <select id="jogNota" title="Nota">
+              <option value="A">Nota A</option>
+              <option value="B" selected>Nota B</option>
+              <option value="C">Nota C</option>
+              <option value="D">Nota D</option>
+              <option value="E">Nota E</option>
+            </select>
+            <button type="submit" id="btnJogador">Incluir</button>
+          </div>
+          <div class="linha-form">
+            <select id="jogPosicao" title="Posição principal">
+              <option value="ZAG">Zagueiro</option>
+              <option value="LAT">Lateral</option>
+              <option value="VOL">Volante</option>
+              <option value="MEA">Meia</option>
+              <option value="ATA">Atacante</option>
+              <option value="GOE">Goleiro</option>
+            </select>
+            <select id="jogPosicao2" title="2ª posição (opcional)">
+              <option value="">2ª posição (opcional)</option>
+              <option value="ZAG">Zagueiro</option>
+              <option value="LAT">Lateral</option>
+              <option value="VOL">Volante</option>
+              <option value="MEA">Meia</option>
+              <option value="ATA">Atacante</option>
+              <option value="GOE">Goleiro</option>
+            </select>
+          </div>
         </form>
+        <p class="muted">A 2ª posição e a idade ajudam o algoritmo a equilibrar zagueiros, meio e atacante entre as idades.</p>
         <button type="button" id="btnCancelarEdicao" class="link" hidden>Cancelar edição</button>
         <ul class="lista-jogadores" id="listaJogadores"></ul>
       </div>

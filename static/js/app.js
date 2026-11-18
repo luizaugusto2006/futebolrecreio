@@ -3,6 +3,10 @@ const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 
 const CORES = ["#2563eb", "#dc2626", "#ea580c", "#7c3aed", "#0d9488", "#db2777", "#65a30d", "#4f46e5"];
+const PAPEIS = ["GOL", "DEF", "MEI", "ATA"];
+const PAPEL_NOME = { GOL: "Goleiro", DEF: "Defesa", MEI: "Meio", ATA: "Ataque" };
+const FAIXAS = ["20-30", "31-40", "41-50", "50+"];
+const FAIXA_NOME = { "20-30": "20 a 30", "31-40": "31 a 40", "41-50": "41 a 50", "50+": "50+" };
 let jogadores = [];
 let geracao = null;
 let edicaoId = null;
@@ -218,7 +222,7 @@ function atualizarSelectChurrasco() {
   jogadores.forEach((j) => {
     const o = document.createElement("option");
     o.value = j.nome;
-    o.textContent = `${j.nome} — ${j.pos_nome}`;
+    o.textContent = `${j.nome} — ${j.posicao2 ? j.posicao + "/" + j.posicao2 : j.posicao}${j.idade ? " • " + j.idade + " anos" : ""}`;
     sel.appendChild(o);
   });
   if (atual) sel.value = atual;
@@ -294,8 +298,10 @@ async function carregarJogadores() {
   if (!jogadores.length) ul.innerHTML = '<li class="vazio">Nenhum jogador cadastrado.</li>';
   jogadores.forEach((j) => {
     const li = document.createElement("li");
-    li.innerHTML = `<span class="nome"></span><span class="pos-badge">${j.posicao}</span>
-      <span class="nota-badge">${j.nota}</span>
+    const pos2 = j.posicao2 ? `<span class="pos-badge sec">${escapeHtml(j.posicao2)}</span>` : "";
+    const idade = j.idade ? `<span class="idade-badge">${j.idade}</span>` : `<span class="idade-badge vazia">—</span>`;
+    li.innerHTML = `<span class="nome"></span><span class="pos-badge">${escapeHtml(j.posicao)}</span>${pos2}
+      ${idade}<span class="nota-badge">${escapeHtml(j.nota)}</span>
       <span class="acoes"><button class="editar" title="Editar">✏️</button><button class="apagar" title="Excluir">🗑</button></span>`;
     li.querySelector(".nome").textContent = j.nome;
     li.querySelector(".editar").onclick = () => iniciarEdicao(j);
@@ -315,7 +321,9 @@ function iniciarEdicao(j) {
   edicaoId = j.id;
   $("#jogNome").value = j.nome;
   $("#jogPosicao").value = j.posicao;
+  $("#jogPosicao2").value = j.posicao2 || "";
   $("#jogNota").value = j.nota;
+  $("#jogIdade").value = j.idade ?? "";
   $("#btnJogador").textContent = "Salvar";
   $("#btnCancelarEdicao").hidden = false;
   $("#jogNome").focus();
@@ -325,6 +333,8 @@ function cancelarEdicao() {
   edicaoId = null;
   $("#formJogador").reset();
   $("#jogNota").value = "B";
+  $("#jogPosicao2").value = "";
+  $("#jogIdade").value = "";
   $("#btnJogador").textContent = "Incluir";
   $("#btnCancelarEdicao").hidden = true;
 }
@@ -334,7 +344,13 @@ $("#inpTimes").addEventListener("input", (e) => { e.target.dataset.tocado = "1";
 
 $("#formJogador").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const body = { nome: $("#jogNome").value, posicao: $("#jogPosicao").value, nota: $("#jogNota").value };
+  const body = {
+    nome: $("#jogNome").value,
+    posicao: $("#jogPosicao").value,
+    posicao2: $("#jogPosicao2").value,
+    nota: $("#jogNota").value,
+    idade: $("#jogIdade").value,
+  };
   try {
     if (edicaoId) await api("PUT", "/api/jogadores/" + edicaoId, body);
     else await api("POST", "/api/jogadores", body);
@@ -345,70 +361,232 @@ $("#formJogador").addEventListener("submit", async (e) => {
   }
 });
 
-/* ---------------- geração de times ---------------- */
-function renderizarTimes(g) {
-  const cont = $("#resultadoTimes");
-  cont.innerHTML = "";
-  $("#btnWhats").disabled = !g;
-  if (!g) return;
-  const cab = document.createElement("div");
-  cab.className = "card";
-  cab.innerHTML = `<h2>Times gerados</h2><p class="muted">Gerado em ${g.gerado_em} • equilíbrio por posição e nota (A–E)</p>`;
-  cont.appendChild(cab);
+/* ---------------- presenças ---------------- */
+let presencaInfo = null;
 
-  const tabela = (jogadores) => `
+function atualizarFonteGeracao() {
+  const el = $("#gerarFonte");
+  if (!el) return;
+  const d = presencaInfo;
+  if (!d) {
+    el.textContent = "—";
+    return;
+  }
+  el.textContent =
+    d.total > 0
+      ? `Vai gerar com quem marcou presença: ${d.total} jogador(es) na quinta ${d.quinta_fmt}.`
+      : `Ninguém marcado ainda — será gerado com todos os ${d.jogadores.length} cadastros.`;
+}
+
+async function carregarPresencas(dataSel) {
+  const url = dataSel ? "/api/presencas?data=" + dataSel : "/api/presencas";
+  const d = await api("GET", url);
+  presencaInfo = d;
+  $("#presData").value = d.quinta;
+  $("#presQuinta").textContent = "Quinta, " + d.quinta_fmt;
+  $("#presContagem").textContent = `${d.total} na pelada`;
+  $("#presContagem").classList.toggle("aberto", d.total > 0);
+  $("#presContagem").classList.toggle("fechado", d.total === 0);
+
+  const chips = $("#chipsPresenca");
+  chips.innerHTML = "";
+  if (!d.jogadores.length) {
+    chips.innerHTML = '<span class="vazio">Nenhum jogador cadastrado — cadastre na lista abaixo ou adicione visitantes.</span>';
+  }
+  d.jogadores.forEach((j) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip" + (j.presente ? " ativo" : "");
+    b.textContent = j.nome;
+    b.title = `${j.posicao}${j.posicao2 ? "/" + j.posicao2 : ""} • nota ${j.nota}${
+      j.idade ? " • " + j.idade + " anos" : ""
+    } — ${j.presente ? "remover marcação" : "marcar presença"}`;
+    b.onclick = () => alternarPresenca(j);
+    chips.appendChild(b);
+  });
+
+  const ul = $("#listaVisitantes");
+  ul.innerHTML = "";
+  if (!d.visitantes.length) {
+    ul.innerHTML = '<li class="vazio">Nenhum visitante nesta quinta.</li>';
+  }
+  d.visitantes.forEach((v) => {
+    const li = document.createElement("li");
+    const span = document.createElement("span");
+    span.className = "nome";
+    span.textContent = v.nome;
+    const pos = document.createElement("span");
+    pos.className = "pos-badge";
+    pos.textContent = v.posicao + (v.posicao2 ? "/" + v.posicao2 : "");
+    const nota = document.createElement("span");
+    nota.className = "nota-badge";
+    nota.textContent = v.nota + (v.idade ? " • " + v.idade : "");
+    const rm = document.createElement("button");
+    rm.className = "remover";
+    rm.textContent = "✕";
+    rm.title = "Remover visitante";
+    rm.onclick = () => removerPresenca(v.id);
+    li.append(span, pos, nota, rm);
+    ul.appendChild(li);
+  });
+
+  atualizarFonteGeracao();
+}
+
+async function alternarPresenca(j) {
+  const av = $("#presAviso");
+  av.hidden = true;
+  try {
+    if (j.presenca_id) await api("DELETE", "/api/presencas/" + j.presenca_id);
+    else await api("POST", "/api/presencas", { data: $("#presData").value, jogador_id: j.id });
+    await carregarPresencas($("#presData").value);
+  } catch (err) {
+    mostrarAviso(av, err.message);
+  }
+}
+
+async function removerPresenca(id) {
+  const av = $("#presAviso");
+  av.hidden = true;
+  try {
+    await api("DELETE", "/api/presencas/" + id);
+    await carregarPresencas($("#presData").value);
+  } catch (err) {
+    mostrarAviso(av, err.message);
+  }
+}
+
+$("#formVisitante").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const av = $("#presAviso");
+  av.hidden = true;
+  try {
+    await api("POST", "/api/presencas", {
+      data: $("#presData").value,
+      nome: $("#visNome").value,
+      posicao: $("#visPosicao").value,
+      nota: $("#visNota").value,
+      idade: $("#visIdade").value,
+    });
+    $("#formVisitante").reset();
+    $("#visPosicao").value = "MEA";
+    $("#visNota").value = "C";
+    await carregarPresencas($("#presData").value);
+  } catch (err) {
+    mostrarAviso(av, err.message);
+  }
+});
+
+$("#presData").addEventListener("change", (e) => {
+  if (e.target.value) carregarPresencas(e.target.value);
+});
+$("#btnPresRecarregar").addEventListener("click", () => carregarPresencas($("#presData").value));
+
+/* ---------------- geração de times ---------------- */
+function badgesPosicao(p) {
+  const a = `<span class="pos-badge">${escapeHtml(p.posicao)}</span>`;
+  const b = p.posicao2 ? `<span class="pos-badge sec">${escapeHtml(p.posicao2)}</span>` : "";
+  return a + b;
+}
+
+function linhaResumo(r) {
+  if (!r) return "";
+  const itens = [`<span class="rs-item rs-forca">Força <b>${r.forca ?? 0}</b></span>`];
+  PAPEIS.forEach((p) => {
+    const q = (r.papeis || {})[p];
+    if (q) itens.push(`<span class="rs-item rs-${p}">${PAPEL_NOME[p]} <b>${q}</b></span>`);
+  });
+  FAIXAS.forEach((f) => {
+    const q = (r.faixas || {})[f];
+    if (q) itens.push(`<span class="rs-item rs-faixa">${FAIXA_NOME[f]} <b>${q}</b></span>`);
+  });
+  if (r.sem_idade) itens.push(`<span class="rs-item rs-faixa">sem idade <b>${r.sem_idade}</b></span>`);
+  return `<div class="time-resumo">${itens.join("")}</div>`;
+}
+
+function tabelaTime(lista) {
+  return `
     <table class="tabela-time">
-      <thead><tr><th>Posição</th><th>Jogador</th></tr></thead>
+      <thead><tr><th>Posição</th><th>Jogador</th><th>Nota</th><th>Idade</th></tr></thead>
       <tbody>
-        ${jogadores
+        ${lista
           .map(
-            (p) =>
-              `<tr><td><span class="pos-badge">${p.pos_nome}</span></td><td class="t-nome">${escapeHtml(p.nome)}</td></tr>`
+            (p) => `<tr>
+              <td class="t-pos">${badgesPosicao(p)}</td>
+              <td class="t-nome">${escapeHtml(p.nome)}</td>
+              <td class="t-nota"><span class="nota-badge tab">${escapeHtml(p.nota)}</span></td>
+              <td class="t-idade">${p.idade ?? "—"}</td>
+            </tr>`
           )
           .join("")}
       </tbody>
     </table>`;
+}
 
-  g.times.forEach((t) => {
+function renderizarTimes(g) {
+  const cont = $("#resultadoTimes");
+  cont.innerHTML = "";
+  $("#btnWhats").disabled = !g;
+  $("#btnLimpar").disabled = !g;
+  if (!g) return;
+
+  const times = g.times || [];
+  const reservas = g.reservas || [];
+  const total = times.reduce((s, t) => s + (t.jogadores || []).length, 0) + reservas.length;
+
+  const cab = document.createElement("div");
+  cab.className = "card";
+  const origem = g.com_presenca
+    ? `Fonte: ${g.qtd_fonte ?? total} marcado(s) na presença${g.quinta ? " • quinta " + fmtData(g.quinta) : ""}`
+    : `Fonte: todos os ${g.qtd_fonte ?? total} cadastros (nenhuma presença marcada)`;
+  cab.innerHTML = `<h2>Times gerados</h2>
+    <p class="muted">Gerado em ${escapeHtml(g.gerado_em || "—")} • ${total} jogador(es) divididos em ${times.length} time(s)${
+      reservas.length ? ` + ${reservas.length} reserva(s)` : ""
+    }</p>
+    <p class="muted">${origem}</p>
+    <p class="muted">Equilíbrio de todos os grupos: força (nota A–E), papel (goleiro, defesa, meio e atacante) e faixa etária (20-30, 31-40, 41-50, 50+).</p>`;
+  cont.appendChild(cab);
+
+  const grade = document.createElement("div");
+  grade.className = "grade-times";
+  cont.appendChild(grade);
+
+  times.forEach((t) => {
+    const lista = t.jogadores || [];
     const div = document.createElement("div");
     div.className = "time-card";
     div.innerHTML = `
-      <div class="time-cabeca" style="background:${CORES[t.cor % CORES.length]}">
-        <strong>${t.nome.toUpperCase()}</strong>
-        <span class="media">${t.jogadores.length} jogadores</span>
+      <div class="time-cabeca" style="background:${CORES[(t.cor || 0) % CORES.length]}">
+        <strong>${escapeHtml((t.nome || "").toUpperCase())}</strong>
+        <span class="media">${lista.length} jogadores</span>
       </div>
-      ${tabela(t.jogadores)}`;
-    cont.appendChild(div);
+      ${linhaResumo(t.resumo)}
+      ${tabelaTime(lista)}`;
+    grade.appendChild(div);
   });
 
-  if (g.reservas && g.reservas.length) {
+  if (reservas.length) {
     const div = document.createElement("div");
     div.className = "time-card";
     div.innerHTML = `
       <div class="time-cabeca reserva-cabeca">
-        <strong>RESERVAS</strong>
-        <span class="media">${g.reservas.length} jogadores</span>
+        <strong>RESERVAS — PRÓXIMO TIME</strong>
+        <span class="media">${reservas.length} jogadores</span>
       </div>
-      ${tabela(g.reservas)}`;
-    cont.appendChild(div);
+      ${linhaResumo(g.resumo_reservas)}
+      <p class="aviso-reserva">Não entraram nos times da vez — ficam para o próximo time.</p>
+      ${tabelaTime(reservas)}`;
+    grade.appendChild(div);
+  } else {
+    const p = document.createElement("p");
+    p.className = "muted";
+    p.textContent = "Todos os jogadores caberam nos times — sem reservas.";
+    grade.appendChild(p);
   }
 }
 
 function escapeHtml(s) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
-async function carregarGeracao() {
-  try {
-    const d = await api("GET", "/api/times");
-    geracao = d.geracao;
-    if (geracao && geracao.params) {
-      if (geracao.params.num_times) $("#inpTimes").value = geracao.params.num_times;
-      if (geracao.params.por_time) $("#inpPorTime").value = geracao.params.por_time;
-      $("#chkGoleiroFixo").checked = !!geracao.params.goleiro_fixo;
-    }
-    renderizarTimes(geracao);
-  } catch (_) {}
 }
 
 $("#btnGerar").addEventListener("click", async () => {
@@ -417,6 +595,7 @@ $("#btnGerar").addEventListener("click", async () => {
   try {
     geracao = await api("POST", "/api/times", {
       acao: "gerar",
+      data: $("#presData").value || undefined,
       num_times: parseInt($("#inpTimes").value, 10),
       por_time: parseInt($("#inpPorTime").value, 10),
       goleiro_fixo: $("#chkGoleiroFixo").checked,
@@ -433,14 +612,33 @@ $("#btnWhats").addEventListener("click", () => {
   window.open("https://wa.me/?text=" + encodeURIComponent(textoTimes(geracao)), "_blank");
 });
 
+$("#btnLimpar").addEventListener("click", () => {
+  const av = $("#timesAviso");
+  av.hidden = true;
+  if (!geracao) return;
+  if (!confirm("Limpar os times da tela?\n\nCadastros e presenças continuam intactos.")) return;
+  geracao = null;
+  renderizarTimes(null);
+  mostrarAviso(av, "Times limpos. Gere outro quando quiser.", true);
+});
+
 function textoTimes(g) {
-  const linhas = (arr) => arr.map((p) => `• ${p.nome} (${p.pos_nome})`).join("\n");
-  let txt = `⚽ *TIMES* — quinta ${new Date().toLocaleDateString("pt-BR")}\n\n`;
-  g.times.forEach((t) => {
-    txt += `*${t.nome.toUpperCase()}*\n${linhas(t.jogadores)}\n\n`;
+  const linhas = (arr) =>
+    arr
+      .map(
+        (p) =>
+          `• ${p.nome} (${p.posicao2 ? p.posicao + "/" + p.posicao2 : p.posicao}, nota ${p.nota}${
+            p.idade ? `, ${p.idade} anos` : ""
+          })`
+      )
+      .join("\n");
+  const quando = g.quinta ? fmtData(g.quinta) : new Date().toLocaleDateString("pt-BR");
+  let txt = `⚽ *TIMES* — quinta ${quando}\n\n`;
+  (g.times || []).forEach((t) => {
+    txt += `*${t.nome.toUpperCase()}*${t.resumo ? ` — força ${t.resumo.forca}` : ""}\n${linhas(t.jogadores || [])}\n\n`;
   });
   if (g.reservas && g.reservas.length) {
-    txt += `*RESERVAS*\n${linhas(g.reservas)}\n`;
+    txt += `*RESERVAS (próximo time)*\n${linhas(g.reservas)}\n`;
   }
   return txt;
 }
@@ -595,9 +793,10 @@ async function iniciar() {
   await Promise.all([
     carregarChurrasco(),
     carregarJogadores(),
-    carregarGeracao(),
+    carregarPresencas(),
     carregarComunicados(),
     carregarGaleria(),
   ]);
+  renderizarTimes(null);
 }
 iniciar();

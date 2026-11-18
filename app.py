@@ -1,5 +1,4 @@
 import io
-import json
 import os
 import random
 import re
@@ -36,6 +35,11 @@ POS_NOME = {
     "MEA": "Meia",
     "ATA": "Atacante",
 }
+PAPEL = {"GOE": "GOL", "ZAG": "DEF", "LAT": "DEF", "VOL": "MEI", "MEA": "MEI", "ATA": "ATA"}
+PAPEL_NOME = {"GOL": "Goleiro", "DEF": "Defesa", "MEI": "Meio", "ATA": "Ataque"}
+PAPEIS = ["GOL", "DEF", "MEI", "ATA"]
+FAIXAS = ["20-30", "31-40", "41-50", "50+"]
+FAIXA_NOME = {"20-30": "20 a 30", "31-40": "31 a 40", "41-50": "41 a 50", "50+": "50+"}
 EXT_IMG = {"png", "jpg", "jpeg", "gif", "webp", "heic", "heif"}
 PADRAO_DATA = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -93,15 +97,46 @@ def init_db():
             chave TEXT PRIMARY KEY,
             valor TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS presencas(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            quinta TEXT NOT NULL,
+            jogador_id INTEGER,
+            nome TEXT NOT NULL,
+            posicao TEXT NOT NULL DEFAULT 'MEA',
+            posicao2 TEXT NOT NULL DEFAULT '',
+            nota TEXT NOT NULL DEFAULT 'C',
+            idade INTEGER,
+            criado_em TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_presencas_jog
+            ON presencas(quinta, jogador_id);
         """
     )
     db.commit()
-    try:
-        db.execute("ALTER TABLE churrasco ADD COLUMN pago INTEGER NOT NULL DEFAULT 0")
-        db.commit()
-    except sqlite3.OperationalError:
-        pass  # coluna já existe
+    for sql in (
+        "ALTER TABLE churrasco ADD COLUMN pago INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE jogadores ADD COLUMN posicao2 TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE jogadores ADD COLUMN idade INTEGER",
+    ):
+        try:
+            db.execute(sql)
+            db.commit()
+        except sqlite3.OperationalError:
+            pass  # coluna já existe
     db.close()
+
+
+def faixa_idade(idade):
+    """Faixa etária usada no equilíbrio dos times."""
+    if idade is None:
+        return None
+    if idade <= 30:
+        return "20-30"
+    if idade <= 40:
+        return "31-40"
+    if idade <= 50:
+        return "41-50"
+    return "50+"
 
 
 # banco criado também na importação (WSGI do PythonAnywhere)
@@ -180,28 +215,54 @@ def _deal(pool, tamanhos):
 
 
 def _custo(grupos):
+    """Custo de desequilíbrio de TODOS os grupos (times + reservas).
+
+    Considera, para cada grupo: soma das notas, quantidade por papel
+    (goleiro/defesa/meio/ataque) e quantidade por faixa etária.
+    """
     todos = [p for g in grupos for p in g]
     if not todos:
         return 0.0
     n = len(todos)
+    ng = len(grupos)
     media = sum(p["valor"] for p in todos) / n
-    custo = sum((sum(p["valor"] for p in g) - len(g) * media) ** 2 for g in grupos)
-    # distribuição de posições (peso menor que a força dos times)
-    for pos in POSICOES:
-        total_pos = sum(1 for p in todos if p["posicao"] == pos)
-        if not total_pos:
+    custo = 0.0
+
+    # 1) força do grupo (soma das notas x tamanho esperado)
+    for g in grupos:
+        custo += (sum(p["valor"] for p in g) - len(g) * media) ** 2
+
+    # 2) distribuição de papeis (goleiro, zagueiro/lateral, meio, atacante)
+    for papel in PAPEIS:
+        total = sum(1 for p in todos if p["papel"] == papel)
+        if not total:
             continue
         for g in grupos:
-            esperado = len(g) * total_pos / n
-            custo += 0.5 * (sum(1 for p in g if p["posicao"] == pos) - esperado) ** 2
+            esperado = len(g) * total / n
+            custo += 0.8 * (sum(1 for p in g if p["papel"] == papel) - esperado) ** 2
+        # grupo sem ninguém daquele papel (mesmo havendo sobra no elenco)
+        if total >= ng:
+            for g in grupos:
+                if not any(papel in (p.get("cobre") or [p["papel"]]) for p in g):
+                    custo += 8.0
+
+    # 3) faixas etárias (20-30, 31-40, 41-50, 50+)
+    for fx in FAIXAS:
+        total = sum(1 for p in todos if p["faixa"] == fx)
+        if not total:
+            continue
+        for g in grupos:
+            esperado = len(g) * total / n
+            custo += 0.45 * (sum(1 for p in g if p["faixa"] == fx) - esperado) ** 2
+
     return custo
 
 
 def _refinar(grupos):
     """Trocas entre grupos para igualar a força dos times E das reservas,
-    sem descuidar da distribuição de posições."""
+    sem descuidar da distribuição de posições, papeis e idades."""
     custo = _custo(grupos)
-    for _ in range(60):
+    for _ in range(80):
         melhorou = False
         for i in range(len(grupos)):
             for j in range(i + 1, len(grupos)):
@@ -229,15 +290,32 @@ def gerar_times(jogadores, num_times, por_time, goleiro_fixo, seed=None):
         raise ValueError("Jogadores por time deve estar entre 1 e 15.")
 
     rng = random.Random(seed)
-    pool = [
-        {
-            "nome": j["nome"],
-            "posicao": j["posicao"],
-            "nota": j["nota"].upper(),
-            "valor": NOTA_VALOR.get(j["nota"].upper(), 3),
-        }
-        for j in jogadores
-    ]
+    pool = []
+    for j in jogadores:
+        nota = str(j["nota"]).upper()
+        posicao = j["posicao"]
+        posicao2 = j.get("posicao2") or ""
+        idade = j.get("idade")
+        faixa = faixa_idade(idade)
+        papel = PAPEL.get(posicao, "MEI")
+        cobre = [papel]
+        if posicao2:
+            p2 = PAPEL.get(posicao2, "MEI")
+            if p2 not in cobre:
+                cobre.append(p2)
+        pool.append(
+            {
+                "nome": j["nome"],
+                "posicao": posicao,
+                "posicao2": posicao2,
+                "nota": nota,
+                "valor": NOTA_VALOR.get(nota, 3),
+                "idade": idade,
+                "faixa": faixa,
+                "papel": papel,
+                "cobre": cobre,
+            }
+        )
     rng.shuffle(pool)
     pool.sort(key=lambda p: -p["valor"])
 
@@ -266,86 +344,75 @@ def gerar_times(jogadores, num_times, por_time, goleiro_fixo, seed=None):
     todos = [p for t in times for p in t] + reservas
     media = sum(p["valor"] for p in todos) / len(todos) if todos else 0
 
-    def montar(g, letra=None):
-        out = []
-        for k, p in enumerate(g, start=1):
-            out.append(
-                {
-                    "num": k,
-                    "nome": p["nome"],
-                    "posicao": p["posicao"],
-                    "pos_nome": POS_NOME.get(p["posicao"], p["posicao"]),
-                    "nota": p["nota"],
-                }
-            )
-        return out
-
     resultado = {
         "times": [
             {
                 "nome": f"Time {i + 1}",
                 "cor": i,
-                "jogadores": montar(times[i]),
+                "jogadores": montar_grupo(times[i]),
                 "media": round(
                     sum(p["valor"] for p in times[i]) / len(times[i]), 1
                 )
                 if times[i]
                 else 0,
+                "resumo": resumo_grupo(times[i]),
             }
             for i in range(num_times)
         ],
-        "reservas": montar(reservas),
+        "reservas": montar_grupo(reservas),
         "reserva_media": round(sum(p["valor"] for p in reservas) / len(reservas), 1)
         if reservas
         else None,
+        "resumo_reservas": resumo_grupo(reservas) if reservas else None,
         "gerado_em": agora_local().strftime("%d/%m/%Y %H:%M"),
     }
     return resultado, times, reservas
 
 
-def estrutura_de_matriz(times, reservas):
-    return {"times_matriz": times, "reservas_matriz": reservas}
-
-
-def resposta_de_matriz(estrutura, params=None):
-    times = estrutura["times_matriz"]
-    reservas = estrutura["reservas_matriz"]
-    saida = {
-        "times": [
-            {
-                "nome": f"Time {i + 1}",
-                "cor": i,
-                "jogadores": [
-                    {
-                        "num": k,
-                        "nome": p["nome"],
-                        "posicao": p["posicao"],
-                        "pos_nome": POS_NOME.get(p["posicao"], p["posicao"]),
-                        "nota": p["nota"],
-                    }
-                    for k, p in enumerate(t, start=1)
-                ],
-                "media": round(sum(p["valor"] for p in t) / len(t), 1) if t else 0,
-            }
-            for i, t in enumerate(times)
-        ],
-        "reservas": [
+def montar_grupo(g):
+    out = []
+    for k, p in enumerate(g, start=1):
+        pos2 = p.get("posicao2") or ""
+        faixa = p.get("faixa")
+        papel = p.get("papel", "MEI")
+        out.append(
             {
                 "num": k,
                 "nome": p["nome"],
                 "posicao": p["posicao"],
+                "posicao2": pos2,
                 "pos_nome": POS_NOME.get(p["posicao"], p["posicao"]),
+                "pos_nome2": POS_NOME.get(pos2, pos2) if pos2 else "",
                 "nota": p["nota"],
+                "idade": p.get("idade"),
+                "faixa": faixa,
+                "faixa_nome": FAIXA_NOME.get(faixa, "—") if faixa else "—",
+                "papel": papel,
+                "papel_nome": PAPEL_NOME.get(papel, "—"),
             }
-            for k, p in enumerate(reservas, start=1)
-        ],
-        "reserva_media": round(sum(p["valor"] for p in reservas) / len(reservas), 1)
-        if reservas
-        else None,
-        "params": params or {},
-        "gerado_em": agora_local().strftime("%d/%m/%Y %H:%M"),
+        )
+    return out
+
+
+def resumo_grupo(g):
+    papeis = {p: 0 for p in PAPEIS}
+    faixas = {f: 0 for f in FAIXAS}
+    sem_idade = 0
+    for p in g:
+        papeis[p.get("papel", "MEI")] += 1
+        fx = p.get("faixa")
+        if fx:
+            faixas[fx] += 1
+        else:
+            sem_idade += 1
+    forca = sum(p["valor"] for p in g)
+    return {
+        "forca": forca,
+        "media": round(forca / len(g), 1) if g else 0,
+        "papeis": papeis,
+        "faixas": faixas,
+        "sem_idade": sem_idade,
     }
-    return saida
 
 
 # ---------------------------------------------------------------- páginas/estáticas
@@ -430,26 +497,55 @@ def config_logo():
 
 # ---------------------------------------------------------------- jogadores
 def linha_jogador(row):
+    idade = row["idade"]
+    faixa = faixa_idade(idade)
     return {
         "id": row["id"],
         "nome": row["nome"],
         "posicao": row["posicao"],
+        "posicao2": row["posicao2"] or "",
         "pos_nome": POS_NOME.get(row["posicao"], row["posicao"]),
+        "pos_nome2": POS_NOME.get(row["posicao2"], row["posicao2"]) if row["posicao2"] else "",
         "nota": row["nota"],
+        "idade": idade,
+        "faixa": faixa,
+        "faixa_nome": FAIXA_NOME.get(faixa, "—") if faixa else "—",
+        "papel": PAPEL.get(row["posicao"], "MEI"),
     }
 
 
 def validar_jogador(data):
     nome = str(data.get("nome", "")).strip()
     posicao = str(data.get("posicao", "")).strip().upper()
+    posicao2 = str(data.get("posicao2", "") or "").strip().upper()
     nota = str(data.get("nota", "")).strip().upper()
+    idade_txt = str(data.get("idade", "") or "").strip()
     if not nome:
         return None, "Informe o nome do jogador."
     if posicao not in POSICOES:
         return None, "Posição inválida."
+    if posicao2:
+        if posicao2 not in POSICOES:
+            return None, "2ª posição inválida."
+        if posicao2 == posicao:
+            return None, "A 2ª posição deve ser diferente da principal."
     if nota not in NOTAS:
         return None, "Nota inválida (use A, B, C, D ou E)."
-    return {"nome": nome[:60], "posicao": posicao, "nota": nota}, None
+    idade = None
+    if idade_txt:
+        try:
+            idade = int(float(idade_txt.replace(",", ".")))
+        except ValueError:
+            return None, "Idade inválida."
+        if not 10 <= idade <= 100:
+            return None, "Idade deve estar entre 10 e 100 anos."
+    return {
+        "nome": nome[:60],
+        "posicao": posicao,
+        "posicao2": posicao2,
+        "nota": nota,
+        "idade": idade,
+    }, None
 
 
 @app.route("/api/jogadores", methods=["GET"])
@@ -465,8 +561,8 @@ def jogadores_post():
         return jsonify(erro=erro), 400
     db = get_db()
     db.execute(
-        "INSERT INTO jogadores(nome, posicao, nota, criado_em) VALUES(?,?,?,?)",
-        (dados["nome"], dados["posicao"], dados["nota"], agora_iso()),
+        "INSERT INTO jogadores(nome, posicao, posicao2, nota, idade, criado_em) VALUES(?,?,?,?,?,?)",
+        (dados["nome"], dados["posicao"], dados["posicao2"], dados["nota"], dados["idade"], agora_iso()),
     )
     db.commit()
     return jsonify(ok=True)
@@ -479,8 +575,8 @@ def jogadores_put(pid):
         return jsonify(erro=erro), 400
     db = get_db()
     db.execute(
-        "UPDATE jogadores SET nome=?, posicao=?, nota=? WHERE id=?",
-        (dados["nome"], dados["posicao"], dados["nota"], pid),
+        "UPDATE jogadores SET nome=?, posicao=?, posicao2=?, nota=?, idade=? WHERE id=?",
+        (dados["nome"], dados["posicao"], dados["posicao2"], dados["nota"], dados["idade"], pid),
     )
     db.commit()
     return jsonify(ok=True)
@@ -562,6 +658,140 @@ def churrasco_delete(cid):
     db.execute("DELETE FROM churrasco WHERE id=? AND quinta=?", (cid, quinta.isoformat()))
     db.commit()
     return dados_churrasco(quinta)
+
+
+# ---------------------------------------------------------------- presenças
+def dados_presencas(quinta):
+    """Lista de quem foi marcado para a pelada: cadastrados + visitantes."""
+    db = get_db()
+    iso = quinta.isoformat()
+    linhas = db.execute(
+        "SELECT * FROM presencas WHERE quinta=? ORDER BY nome COLLATE NOCASE", (iso,)
+    ).fetchall()
+
+    marcados = {}
+    visitantes = []
+    for r in linhas:
+        jid = r["jogador_id"]
+        if jid:
+            if db.execute("SELECT id FROM jogadores WHERE id=?", (jid,)).fetchone():
+                marcados[jid] = r["id"]
+                continue
+        # visitante (ou cadastro já excluído) — fica pela foto do momento
+        visitantes.append(
+            {
+                "id": r["id"],
+                "nome": r["nome"],
+                "posicao": r["posicao"],
+                "posicao2": r["posicao2"] or "",
+                "nota": r["nota"],
+                "idade": r["idade"],
+            }
+        )
+
+    jogadores = [
+        {
+            "id": row["id"],
+            "nome": row["nome"],
+            "posicao": row["posicao"],
+            "posicao2": row["posicao2"] or "",
+            "nota": row["nota"],
+            "idade": row["idade"],
+            "presente": row["id"] in marcados,
+            "presenca_id": marcados.get(row["id"]),
+        }
+        for row in db.execute("SELECT * FROM jogadores ORDER BY nome COLLATE NOCASE").fetchall()
+    ]
+
+    return {
+        "quinta": iso,
+        "quinta_fmt": quinta.strftime("%d/%m/%Y"),
+        "jogadores": jogadores,
+        "visitantes": visitantes,
+        "marcados": len(marcados),
+        "total": len(marcados) + len(visitantes),
+    }
+
+
+@app.route("/api/presencas", methods=["GET"])
+def presencas_get():
+    txt = request.args.get("data")
+    quinta = parse_data(txt) if txt else proxima_quinta()
+    if quinta is None:
+        return jsonify(erro="Data inválida."), 400
+    return dados_presencas(quinta)
+
+
+@app.route("/api/presencas", methods=["POST"])
+def presencas_post():
+    data = request.get_json(silent=True) or {}
+    quinta = parse_data(str(data.get("data", ""))) or proxima_quinta()
+    if quinta is None:
+        return jsonify(erro="Data inválida."), 400
+    db = get_db()
+    iso = quinta.isoformat()
+
+    jid = data.get("jogador_id")
+    if jid not in (None, ""):
+        try:
+            jid = int(jid)
+        except (TypeError, ValueError):
+            return jsonify(erro="Jogador inválido."), 400
+        j = db.execute("SELECT * FROM jogadores WHERE id=?", (jid,)).fetchone()
+        if not j:
+            return jsonify(erro="Jogador não encontrado."), 404
+        if db.execute(
+            "SELECT id FROM presencas WHERE quinta=? AND jogador_id=?", (iso, jid)
+        ).fetchone():
+            return jsonify(erro="Esse jogador já está marcado."), 409
+        db.execute(
+            "INSERT INTO presencas(quinta, jogador_id, nome, posicao, posicao2, nota, idade, criado_em) "
+            "VALUES(?,?,?,?,?,?,?,?)",
+            (iso, jid, j["nome"], j["posicao"], j["posicao2"], j["nota"], j["idade"], agora_iso()),
+        )
+    else:
+        nome = str(data.get("nome", "")).strip()
+        posicao = str(data.get("posicao", "")).strip().upper()
+        posicao2 = str(data.get("posicao2", "") or "").strip().upper()
+        nota = str(data.get("nota", "") or "C").strip().upper()
+        idade_txt = str(data.get("idade", "") or "").strip()
+        if not nome:
+            return jsonify(erro="Informe o nome do visitante."), 400
+        if posicao not in POSICOES:
+            return jsonify(erro="Posição inválida."), 400
+        if posicao2 and (posicao2 not in POSICOES or posicao2 == posicao):
+            posicao2 = ""
+        if nota not in NOTAS:
+            nota = "C"
+        idade = None
+        if idade_txt:
+            try:
+                idade = int(float(idade_txt.replace(",", ".")))
+            except ValueError:
+                return jsonify(erro="Idade inválida."), 400
+            if not 10 <= idade <= 100:
+                return jsonify(erro="Idade deve estar entre 10 e 100 anos."), 400
+        if db.execute(
+            "SELECT id FROM presencas WHERE quinta=? AND jogador_id IS NULL AND lower(nome)=lower(?)",
+            (iso, nome),
+        ).fetchone():
+            return jsonify(erro="Esse visitante já está na lista."), 409
+        db.execute(
+            "INSERT INTO presencas(quinta, jogador_id, nome, posicao, posicao2, nota, idade, criado_em) "
+            "VALUES(?,NULL,?,?,?,?,?,?)",
+            (iso, nome[:60], posicao, posicao2, nota, idade, agora_iso()),
+        )
+
+    db.commit()
+    return dados_presencas(quinta)
+
+
+@app.route("/api/presencas/<int:pid>", methods=["DELETE"])
+def presencas_delete(pid):
+    db = get_db()
+    db.execute("DELETE FROM presencas WHERE id=?", (pid,))
+    db.commit()
+    return jsonify(ok=True)
 
 
 # ---------------------------------------------------------------- comunicados
@@ -715,21 +945,34 @@ def galeria_delete(fid):
 
 
 # ---------------------------------------------------------------- geração
-@app.route("/api/times", methods=["GET"])
-def times_get():
-    bruto = cfg_get("geracao")
-    if not bruto:
-        return {"geracao": None}
-    return {"geracao": json.loads(bruto)}
+def jogadores_para_geracao(quinta):
+    """Quem entra na geração: os marcados na presença (cadastro + visitantes).
+    Se ninguém marcou, volta para todos os cadastrados."""
+    db = get_db()
+    iso = quinta.isoformat()
+    linhas = db.execute("SELECT * FROM presencas WHERE quinta=?", (iso,)).fetchall()
+    if not linhas:
+        rows = db.execute("SELECT * FROM jogadores ORDER BY nome COLLATE NOCASE").fetchall()
+        return [linha_jogador(r) for r in rows], False
+
+    jogadores = []
+    for r in linhas:
+        atual = None
+        if r["jogador_id"]:
+            atual = db.execute("SELECT * FROM jogadores WHERE id=?", (r["jogador_id"],)).fetchone()
+        # cadastro atualizado quando existe; senão a foto salva na marcação
+        jogadores.append(linha_jogador(atual if atual else r))
+    return jogadores, True
 
 
 @app.route("/api/times", methods=["POST"])
 def times_post():
+    """Gera todos os times de uma vez, só para visualização/WhatsApp —
+    nada é gravado no banco."""
     data = request.get_json(silent=True) or {}
-
-    # gerar do zero
-    rows = get_db().execute("SELECT * FROM jogadores ORDER BY nome COLLATE NOCASE").fetchall()
-    jogadores = [linha_jogador(r) for r in rows]
+    quinta = parse_data(str(data.get("data", ""))) or proxima_quinta()
+    if quinta is None:
+        return jsonify(erro="Data inválida."), 400
     try:
         num_times = int(data.get("num_times", 0))
         por_time = int(data.get("por_time", 6))
@@ -737,18 +980,18 @@ def times_post():
     except (TypeError, ValueError):
         return jsonify(erro="Parâmetros inválidos."), 400
 
+    jogadores, com_presenca = jogadores_para_geracao(quinta)
     try:
-        resultado, times, reservas = gerar_times(
+        resultado, _times, _reservas = gerar_times(
             jogadores, num_times, por_time, goleiro_fixo, seed=data.get("seed")
         )
     except ValueError as e:
         return jsonify(erro=str(e)), 400
 
-    params = {"num_times": num_times, "por_time": por_time, "goleiro_fixo": goleiro_fixo}
-    estrutura = estrutura_de_matriz(times, reservas)
-    resultado["params"] = params
-    resultado["estrutura"] = estrutura
-    cfg_set("geracao", json.dumps(resultado))
+    resultado["params"] = {"num_times": num_times, "por_time": por_time, "goleiro_fixo": goleiro_fixo}
+    resultado["quinta"] = quinta.isoformat()
+    resultado["com_presenca"] = com_presenca
+    resultado["qtd_fonte"] = len(jogadores)
     return jsonify(resultado)
 
 
