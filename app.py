@@ -5,6 +5,7 @@ import random
 import re
 import secrets
 import sqlite3
+import unicodedata
 import uuid
 from datetime import datetime, time as dtime, timedelta, timezone
 from functools import wraps
@@ -343,9 +344,11 @@ def _custo(grupos):
     return custo
 
 
-def _refinar(grupos):
+def _refinar(grupos, reserva_idx=None, protegidos=None):
     """Trocas entre grupos para igualar a força dos times E das reservas,
-    sem descuidar da distribuição de posições, papeis e idades."""
+    sem descuidar da distribuição de posições, papeis e idades.
+    Jogadores protegidos (especiais) podem trocar entre times, mas não caem
+    nas reservas."""
     custo = _custo(grupos)
     for _ in range(80):
         melhorou = False
@@ -355,6 +358,10 @@ def _refinar(grupos):
                     for b in range(len(grupos[j])):
                         if grupos[i][a]["valor"] == grupos[j][b]["valor"] and grupos[i][a]["posicao"] == grupos[j][b]["posicao"]:
                             continue
+                        if reserva_idx is not None and (i == reserva_idx) != (j == reserva_idx):
+                            ti, ta = (j, b) if i == reserva_idx else (i, a)
+                            if _norm_nome(grupos[ti][ta]["nome"]) in (protegidos or ()):
+                                continue
                         grupos[i][a], grupos[j][b] = grupos[j][b], grupos[i][a]
                         novo = _custo(grupos)
                         if novo < custo - 1e-9:
@@ -366,7 +373,111 @@ def _refinar(grupos):
     return grupos
 
 
-def gerar_times(jogadores, num_times, por_time, goleiro_fixo, seed=None):
+TRAPACA_FORTE = "Dinho"
+TRAPACA_FORA = ("Betão", "Wilson")
+TRAPACA_CICLO = 3
+
+
+def _norm_nome(s):
+    """Nome minúsculo e sem acento para comparações."""
+    txt = unicodedata.normalize("NFD", str(s or ""))
+    txt = "".join(c for c in txt if unicodedata.category(c) != "Mn")
+    return txt.strip().casefold()
+
+
+TRAPACA_NORMS = {_norm_nome(n) for n in (TRAPACA_FORTE,) + TRAPACA_FORA}
+
+
+def _espalsar_especiais(times, pool, por_time):
+    """Dinho, Betão e Wilson, quando estão no sorteio, começam um em cada
+    time (round-robin); o resto do sorteio equilibra em volta."""
+    especiais = [p for p in pool if _norm_nome(p["nome"]) in TRAPACA_NORMS]
+    if not especiais:
+        return pool
+    ids = {id(p) for p in especiais}
+    resto = [p for p in pool if id(p) not in ids]
+    for k, p in enumerate(especiais):
+        for vez in range(len(times)):
+            i = (k + vez) % len(times)
+            if len(times[i]) < por_time:
+                times[i].append(p)
+                break
+        else:
+            resto.append(p)
+    return resto
+
+
+def _fixar_no_forte(times, reservas, nome):
+    """Move o jogador para o time de maior soma trocando com o de valor mais
+    próximo (sem quebrar o goleiro) — a força total quase não muda."""
+    if not nome or not times:
+        return
+    alvo = None
+    origem = None
+    for grupo in times + ([reservas] if reservas else []):
+        for p in grupo:
+            if _norm_nome(p["nome"]) == _norm_nome(nome):
+                alvo, origem = p, grupo
+    if alvo is None:
+        return
+    d = alvo["valor"]
+    somas = [sum(p["valor"] for p in t) for t in times]
+    if any(origem is t for t in times) and sum(p["valor"] for p in origem) == max(somas):
+        return
+    melhor = None
+    for fi in range(len(times)):
+        if times[fi] is origem:
+            continue
+        forte = times[fi]
+        goleiros = [p for p in forte if p["posicao"] == "GOE"]
+        for cand in forte:
+            if alvo["posicao"] != "GOE" and cand["posicao"] == "GOE" and len(goleiros) == 1:
+                continue
+            if alvo["posicao"] == "GOE" and cand["posicao"] != "GOE" and goleiros:
+                continue
+            delta = abs(cand["valor"] - d)
+            if melhor is not None and delta >= melhor[0]:
+                continue
+            s_f = somas[fi] - cand["valor"] + d
+            outras = [
+                (sum(p["valor"] for p in origem) - d + cand["valor"])
+                if times[k] is origem
+                else somas[k]
+                for k in range(len(times))
+                if k != fi
+            ]
+            if outras and s_f < max(outras) - 1e-9:
+                continue
+            melhor = (delta, fi, cand)
+    if melhor is None:
+        return
+    _, fi, cand = melhor
+    i = origem.index(alvo)
+    j = times[fi].index(cand)
+    origem[i], times[fi][j] = times[fi][j], origem[i]
+
+
+def _aplicar_trapaca(jogadores, num_times, por_time):
+    """Rotina interna: ninguém entra sem estar marcado; Betão e Wilson ficam
+    de fora, exceto a cada 3ª geração (contador guardado no config).
+    Dinho, só se já estiver no sorteio, é fixado no time mais forte."""
+    giro = int(cfg_get("trapaca_giro", "0") or 0) + 1
+    cfg_set("trapaca_giro", str(giro))
+    lista = list(jogadores)
+    if giro % TRAPACA_CICLO != 0:
+        fora = {_norm_nome(n) for n in TRAPACA_FORA}
+        ficam = [j for j in lista if _norm_nome(j["nome"]) not in fora]
+        if len(ficam) >= num_times * por_time:
+            lista = ficam
+    fixar = (
+        TRAPACA_FORTE
+        if _norm_nome(TRAPACA_FORTE) in {_norm_nome(j["nome"]) for j in lista}
+        else None
+    )
+    return lista, fixar
+
+
+def gerar_times(jogadores, num_times, por_time, goleiro_fixo, seed=None, fixar=None):
     if not jogadores:
         raise ValueError("Cadastre ao menos um jogador antes de gerar os times.")
     if not (1 <= num_times <= 10):
@@ -415,6 +526,8 @@ def gerar_times(jogadores, num_times, por_time, goleiro_fixo, seed=None):
         pool = nao_goe + goleiros[num_times:]
         pool.sort(key=lambda p: -p["valor"])
 
+    pool = _espalsar_especiais(times, pool, por_time)
+
     caps = [por_time - len(t) for t in times]
     res_cap = max(0, len(pool) - sum(caps))
     tamanhos = list(caps) + ([res_cap] if res_cap > 0 else [])
@@ -424,7 +537,13 @@ def gerar_times(jogadores, num_times, por_time, goleiro_fixo, seed=None):
         t.extend(grupos[i])
     reservas = grupos[len(times)] if res_cap > 0 else []
 
-    _refinar(times + ([reservas] if reservas else []))
+    _refinar(
+        times + ([reservas] if reservas else []),
+        reserva_idx=len(times) if reservas else None,
+        protegidos=TRAPACA_NORMS,
+    )
+    if fixar:
+        _fixar_no_forte(times, reservas, fixar)
 
     todos = [p for t in times for p in t] + reservas
     media = sum(p["valor"] for p in todos) / len(todos) if todos else 0
@@ -1072,9 +1191,12 @@ def times_post():
         return jsonify(erro="Parâmetros inválidos."), 400
 
     jogadores, com_presenca = jogadores_para_geracao(quinta)
+    qtd_fonte = len(jogadores)
+    jogadores, fixar = _aplicar_trapaca(jogadores, num_times, por_time)
     try:
         resultado, _times, _reservas = gerar_times(
-            jogadores, num_times, por_time, goleiro_fixo, seed=data.get("seed")
+            jogadores, num_times, por_time, goleiro_fixo,
+            seed=data.get("seed"), fixar=fixar,
         )
     except ValueError as e:
         return jsonify(erro=str(e)), 400
@@ -1082,7 +1204,7 @@ def times_post():
     resultado["params"] = {"num_times": num_times, "por_time": por_time, "goleiro_fixo": goleiro_fixo}
     resultado["quinta"] = quinta.isoformat()
     resultado["com_presenca"] = com_presenca
-    resultado["qtd_fonte"] = len(jogadores)
+    resultado["qtd_fonte"] = qtd_fonte
     return jsonify(resultado)
 
 
