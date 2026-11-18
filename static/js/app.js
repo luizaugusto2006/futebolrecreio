@@ -460,7 +460,7 @@ async function carregarPresencas(dataSel) {
     b.type = "button";
     b.className = "chip" + (j.presente ? " ativo" : "");
     b.textContent = j.nome;
-    b.title = `${j.posicao}${j.posicao2 ? "/" + j.posicao2 : ""} • classe ${j.nota}${
+    b.title = `${j.posicao}${j.posicao2 ? "/" + j.posicao2 : ""}${
       j.idade ? " • " + j.idade + " anos" : ""
     } — ${j.presente ? "remover marcação" : "marcar presença"}`;
     b.onclick = () => alternarPresenca(j);
@@ -689,7 +689,7 @@ function textoTimes(g) {
     arr
       .map(
         (p) =>
-          `• ${p.nome} (${p.posicao2 ? p.posicao + "/" + p.posicao2 : p.posicao}, classe ${p.nota}${
+          `• ${p.nome} (${p.posicao2 ? p.posicao + "/" + p.posicao2 : p.posicao}${
             p.idade ? `, ${p.idade} anos` : ""
           })`
       )
