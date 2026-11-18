@@ -280,11 +280,10 @@ def gerar_times(jogadores, num_times, por_time, goleiro_fixo, seed=None):
             )
         return out
 
-    letras = [chr(ord("A") + i) for i in range(num_times)]
     resultado = {
         "times": [
             {
-                "nome": f"Time {letras[i]}",
+                "nome": f"Time {i + 1}",
                 "cor": i,
                 "jogadores": montar(times[i]),
                 "media": round(
@@ -304,33 +303,6 @@ def gerar_times(jogadores, num_times, por_time, goleiro_fixo, seed=None):
     return resultado, times, reservas
 
 
-def rodar_reservas(estrutura):
-    """Troca reservas por titulares (mesma posição quando possível)."""
-    times = [[dict(p) for p in t] for t in estrutura["times_matriz"]]
-    reservas = [dict(p) for p in estrutura.get("reservas_matriz", [])]
-    if not reservas or not times:
-        return None
-    pares, usados = [], set()
-    for ri, rp in enumerate(reservas):
-        melhor, melhor_chave = None, None
-        for ti, t in enumerate(times):
-            for k, tp in enumerate(t):
-                if (ti, k) in usados:
-                    continue
-                mesma = tp["posicao"] == rp["posicao"]
-                chave = (0 if mesma else 1, abs(tp["valor"] - rp["valor"]))
-                if melhor_chave is None or chave < melhor_chave:
-                    melhor_chave, melhor = chave, (ti, k)
-        if melhor:
-            usados.add(melhor)
-            pares.append((ri, melhor))
-    for ri, (ti, k) in pares:
-        reservas[ri], times[ti][k] = times[ti][k], reservas[ri]
-    estrutura["times_matriz"] = times
-    estrutura["reservas_matriz"] = reservas
-    return estrutura
-
-
 def estrutura_de_matriz(times, reservas):
     return {"times_matriz": times, "reservas_matriz": reservas}
 
@@ -338,11 +310,10 @@ def estrutura_de_matriz(times, reservas):
 def resposta_de_matriz(estrutura, params=None):
     times = estrutura["times_matriz"]
     reservas = estrutura["reservas_matriz"]
-    letras = [chr(ord("A") + i) for i in range(len(times))]
     saida = {
         "times": [
             {
-                "nome": f"Time {letras[i]}",
+                "nome": f"Time {i + 1}",
                 "cor": i,
                 "jogadores": [
                     {
@@ -755,22 +726,6 @@ def times_get():
 @app.route("/api/times", methods=["POST"])
 def times_post():
     data = request.get_json(silent=True) or {}
-    acao = data.get("acao", "gerar")
-
-    if acao == "rodar":
-        bruto = cfg_get("geracao")
-        if not bruto:
-            return jsonify(erro="Gere os times primeiro."), 400
-        geracao = json.loads(bruto)
-        estrutura = geracao.get("estrutura")
-        if not estrutura or not estrutura.get("reservas_matriz"):
-            return jsonify(erro="Não há reservas para rodar."), 400
-        nova = rodar_reservas(estrutura)
-        saida = resposta_de_matriz(nova, geracao.get("params"))
-        geracao["estrutura"] = nova
-        geracao.update(saida)
-        cfg_set("geracao", json.dumps(geracao))
-        return jsonify(geracao)
 
     # gerar do zero
     rows = get_db().execute("SELECT * FROM jogadores ORDER BY nome COLLATE NOCASE").fetchall()
@@ -791,6 +746,7 @@ def times_post():
 
     params = {"num_times": num_times, "por_time": por_time, "goleiro_fixo": goleiro_fixo}
     estrutura = estrutura_de_matriz(times, reservas)
+    resultado["params"] = params
     resultado["estrutura"] = estrutura
     cfg_set("geracao", json.dumps(resultado))
     return jsonify(resultado)

@@ -44,8 +44,9 @@
         </div>
         <p class="jorgao">“O churrasco não é de graça, Porraaaa!”</p>
         <form id="formChurrasco" class="linha-form">
-          <input id="churrascoNome" type="text" placeholder="Seu nome" maxlength="60"
-                 autocomplete="name" required>
+          <select id="churrascoSelect" required>
+            <option value="">Selecione seu nome…</option>
+          </select>
           <button type="submit" id="btnChurrasco">Confirmar</button>
         </form>
         <p class="aviso" id="churrascoAviso" hidden></p>
@@ -72,8 +73,7 @@
         </label>
         <div class="botoes">
           <button id="btnGerar" class="primario">Gerar times</button>
-          <button id="btnRodar" class="secundario">Rodar reservas</button>
-          <button id="btnCopiar" class="secundario">Copiar texto</button>
+          <button id="btnWhats" class="secundario" disabled>📤 Enviar no WhatsApp</button>
         </div>
         <p class="aviso" id="timesAviso" hidden></p>
       </div>

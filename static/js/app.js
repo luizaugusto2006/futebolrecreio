@@ -198,7 +198,41 @@ async function carregarChurrasco() {
     }
     ul.appendChild(li);
   });
+  aplicarConfirmadosNoSelect();
   atualizarPrazo();
+}
+
+/* select do churrasco baseado no cadastro permanente de jogadores */
+function atualizarSelectChurrasco() {
+  const sel = $("#churrascoSelect");
+  if (!sel) return;
+  const atual = sel.value;
+  sel.innerHTML = '<option value="">Selecione seu nome…</option>';
+  if (!jogadores.length) {
+    sel.insertAdjacentHTML(
+      "beforeend",
+      '<option value="" disabled>Cadastre os jogadores na aba Times</option>'
+    );
+    return;
+  }
+  jogadores.forEach((j) => {
+    const o = document.createElement("option");
+    o.value = j.nome;
+    o.textContent = `${j.nome} — ${j.pos_nome}`;
+    sel.appendChild(o);
+  });
+  if (atual) sel.value = atual;
+  aplicarConfirmadosNoSelect();
+}
+
+function aplicarConfirmadosNoSelect() {
+  const sel = $("#churrascoSelect");
+  if (!sel || !churrascoAtual) return;
+  const set = new Set(churrascoAtual.nomes.map((n) => n.nome.toLowerCase()));
+  Array.from(sel.options).forEach((o) => {
+    if (o.value) o.disabled = set.has(o.value.toLowerCase());
+  });
+  if (sel.value && set.has(sel.value.toLowerCase())) sel.value = "";
 }
 
 async function alternarPagamento(id, pago) {
@@ -233,8 +267,8 @@ $("#formChurrasco").addEventListener("submit", async (e) => {
   const av = $("#churrascoAviso");
   av.hidden = true;
   try {
-    await api("POST", "/api/churrasco", { nome: $("#churrascoNome").value });
-    $("#churrascoNome").value = "";
+    await api("POST", "/api/churrasco", { nome: $("#churrascoSelect").value });
+    $("#churrascoSelect").value = "";
     await carregarChurrasco();
   } catch (err) {
     mostrarAviso(av, err.message);
@@ -274,6 +308,7 @@ async function carregarJogadores() {
   });
   const padrao = Math.max(1, Math.floor(jogadores.length / 6));
   if (!$("#inpTimes").dataset.tocado) $("#inpTimes").value = padrao;
+  atualizarSelectChurrasco();
 }
 
 function iniciarEdicao(j) {
@@ -311,36 +346,38 @@ $("#formJogador").addEventListener("submit", async (e) => {
 });
 
 /* ---------------- geração de times ---------------- */
-function badgeNota(n) {
-  return `<span class="nota-badge">${n}</span>`;
-}
-
 function renderizarTimes(g) {
   const cont = $("#resultadoTimes");
   cont.innerHTML = "";
+  $("#btnWhats").disabled = !g;
   if (!g) return;
   const cab = document.createElement("div");
   cab.className = "card";
   cab.innerHTML = `<h2>Times gerados</h2><p class="muted">Gerado em ${g.gerado_em} • equilíbrio por posição e nota (A–E)</p>`;
   cont.appendChild(cab);
 
-  const linhas = (jogadores, comNum) =>
-    jogadores.map((p) => `<li>
-      ${comNum ? `<span class="num">${p.num}.</span>` : ""}
-      <span class="nome">${escapeHtml(p.nome)}</span>
-      <span class="pos-badge">${p.pos_nome}</span>
-      ${badgeNota(p.nota)}
-    </li>`).join("");
+  const tabela = (jogadores) => `
+    <table class="tabela-time">
+      <thead><tr><th>Posição</th><th>Jogador</th></tr></thead>
+      <tbody>
+        ${jogadores
+          .map(
+            (p) =>
+              `<tr><td><span class="pos-badge">${p.pos_nome}</span></td><td class="t-nome">${escapeHtml(p.nome)}</td></tr>`
+          )
+          .join("")}
+      </tbody>
+    </table>`;
 
   g.times.forEach((t) => {
     const div = document.createElement("div");
     div.className = "time-card";
     div.innerHTML = `
       <div class="time-cabeca" style="background:${CORES[t.cor % CORES.length]}">
-        <strong>${t.nome} <span style="font-weight:400;font-size:.8rem">(${t.jogadores.length} jog.)</span></strong>
-        <span class="media">média ${String(t.media).replace(".", ",")}</span>
+        <strong>${t.nome.toUpperCase()}</strong>
+        <span class="media">${t.jogadores.length} jogadores</span>
       </div>
-      <ul>${linhas(t.jogadores, true)}</ul>`;
+      ${tabela(t.jogadores)}`;
     cont.appendChild(div);
   });
 
@@ -349,14 +386,12 @@ function renderizarTimes(g) {
     div.className = "time-card";
     div.innerHTML = `
       <div class="time-cabeca reserva-cabeca">
-        <strong>Reservas <span style="font-weight:400;font-size:.8rem">(${g.reservas.length})</span></strong>
-        <span class="media">média ${String(g.reserva_media).replace(".", ",")}</span>
+        <strong>RESERVAS</strong>
+        <span class="media">${g.reservas.length} jogadores</span>
       </div>
-      <ul>${linhas(g.reservas, true)}</ul>`;
+      ${tabela(g.reservas)}`;
     cont.appendChild(div);
   }
-  $("#btnRodar").disabled = !(g.reservas && g.reservas.length);
-  $("#btnCopiar").disabled = false;
 }
 
 function escapeHtml(s) {
@@ -393,36 +428,22 @@ $("#btnGerar").addEventListener("click", async () => {
   }
 });
 
-$("#btnRodar").addEventListener("click", async () => {
-  const av = $("#timesAviso");
-  av.hidden = true;
-  try {
-    geracao = await api("POST", "/api/times", { acao: "rodar" });
-    renderizarTimes(geracao);
-    mostrarAviso(av, "Reservas rodadas!", true);
-  } catch (err) {
-    mostrarAviso(av, err.message);
-  }
+$("#btnWhats").addEventListener("click", () => {
+  if (!geracao) return;
+  window.open("https://wa.me/?text=" + encodeURIComponent(textoTimes(geracao)), "_blank");
 });
 
 function textoTimes(g) {
-  const linhas = (arr) =>
-    arr.map((p) => `${p.num}. ${p.nome} (${p.pos_nome}) — ${p.nota}`).join("\n");
+  const linhas = (arr) => arr.map((p) => `• ${p.nome} (${p.pos_nome})`).join("\n");
   let txt = `⚽ *TIMES* — quinta ${new Date().toLocaleDateString("pt-BR")}\n\n`;
   g.times.forEach((t) => {
-    txt += `■ *${t.nome}* — média ${String(t.media).replace(".", ",")}\n${linhas(t.jogadores)}\n\n`;
+    txt += `*${t.nome.toUpperCase()}*\n${linhas(t.jogadores)}\n\n`;
   });
   if (g.reservas && g.reservas.length) {
-    txt += `■ *RESERVAS* — média ${String(g.reserva_media).replace(".", ",")}\n${linhas(g.reservas)}\n`;
+    txt += `*RESERVAS*\n${linhas(g.reservas)}\n`;
   }
   return txt;
 }
-
-$("#btnCopiar").addEventListener("click", async () => {
-  if (!geracao) return;
-  const ok = await copiarTexto(textoTimes(geracao));
-  mostrarAviso($("#timesAviso"), ok ? "Texto copiado! Cole no grupo." : "Não foi possível copiar.", ok);
-});
 
 $("#btnCopiarLink").addEventListener("click", async () => {
   const ok = await copiarTexto(location.origin);
