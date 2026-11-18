@@ -270,7 +270,7 @@ main { max-width: 680px; margin: 0 auto; padding: 16px 12px 64px; }
 .linha-form input[type="text"] { flex: 1 1 160px; }
 .linha-form select { flex: 1 1 130px; width: auto; min-width: 0; }
 
-input[type="text"], input[type="number"], input[type="date"], select, textarea {
+input[type="text"], input[type="password"], input[type="number"], input[type="date"], select, textarea {
   width: 100%;
   padding: 11px 13px;
   border: 1px solid var(--borda);
@@ -664,6 +664,35 @@ button:not(:disabled):active { transform: translateY(3px); }
   box-shadow: 0 4px 0 #8f241c, 0 10px 18px -8px rgba(143, 36, 28, .7);
 }
 
+/* ---------------- modal de senha do admin ---------------- */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(100% 100% at 50% 0%, rgba(10, 18, 36, .82), rgba(4, 8, 18, .93));
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  animation: surge .2s both;
+}
+.modal[hidden] { display: none; }
+.modal-caixa {
+  width: 100%;
+  max-width: 360px;
+  background: linear-gradient(180deg, #ffffff, #fbfcfe);
+  border: 1px solid rgba(255, 255, 255, .85);
+  border-radius: var(--raio);
+  padding: 20px;
+  box-shadow: 0 30px 70px -25px rgba(0, 0, 0, .85);
+}
+.modal-caixa h2 { margin: 0 0 4px; font-size: 1.08rem; font-weight: 800; }
+.modal-caixa form { display: grid; gap: 11px; margin-top: 14px; }
+[data-tema="escuro"] .modal-caixa {
+  background: linear-gradient(180deg, #16203a, #121a30);
+  border-color: #26334f;
+}
+
 /* ---------------- ajustes ---------------- */
 .linha-logo { display: flex; align-items: center; gap: 15px; }
 .linha-logo img {
@@ -769,6 +798,7 @@ hr { border: none; border-top: 1px solid var(--borda); margin: 17px 0; }
   box-shadow: 0 3px 0 #12295c, 0 8px 16px -6px rgba(0, 0, 0, .7), inset 0 1px 0 rgba(255, 255, 255, .3);
 }
 [data-tema="escuro"] input[type="text"],
+[data-tema="escuro"] input[type="password"],
 [data-tema="escuro"] input[type="number"],
 [data-tema="escuro"] input[type="date"],
 [data-tema="escuro"] select,

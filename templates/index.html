@@ -83,12 +83,13 @@
             <option value="ATA">Atacante</option>
             <option value="GOE">Goleiro</option>
           </select>
-          <select id="visNota" title="Nota">
-            <option value="A">Nota A</option>
-            <option value="B">Nota B</option>
-            <option value="C" selected>Nota C</option>
-            <option value="D">Nota D</option>
-            <option value="E">Nota E</option>
+          <select id="visNota" title="Classe de 5 a 10">
+            <option value="5">Classe 5</option>
+            <option value="6">Classe 6</option>
+            <option value="7" selected>Classe 7</option>
+            <option value="8">Classe 8</option>
+            <option value="9">Classe 9</option>
+            <option value="10">Classe 10</option>
           </select>
           <input id="visIdade" type="number" min="10" max="100" placeholder="Idade" inputmode="numeric">
           <button type="submit" class="primario">+ Visitante</button>
@@ -121,48 +122,6 @@
       </div>
 
       <div id="resultadoTimes"></div>
-
-      <div class="card">
-        <div class="card-topo">
-          <h2>Jogadores <span class="muted" id="qtdJogadores"></span></h2>
-        </div>
-        <form id="formJogador" class="form-jogador">
-          <div class="linha-form">
-            <input id="jogNome" type="text" placeholder="Nome" maxlength="60" required>
-            <input id="jogIdade" type="number" min="10" max="100" placeholder="Idade" inputmode="numeric" title="Idade">
-            <select id="jogNota" title="Nota">
-              <option value="A">Nota A</option>
-              <option value="B" selected>Nota B</option>
-              <option value="C">Nota C</option>
-              <option value="D">Nota D</option>
-              <option value="E">Nota E</option>
-            </select>
-            <button type="submit" id="btnJogador">Incluir</button>
-          </div>
-          <div class="linha-form">
-            <select id="jogPosicao" title="Posição principal">
-              <option value="ZAG">Zagueiro</option>
-              <option value="LAT">Lateral</option>
-              <option value="VOL">Volante</option>
-              <option value="MEA">Meia</option>
-              <option value="ATA">Atacante</option>
-              <option value="GOE">Goleiro</option>
-            </select>
-            <select id="jogPosicao2" title="2ª posição (opcional)">
-              <option value="">2ª posição (opcional)</option>
-              <option value="ZAG">Zagueiro</option>
-              <option value="LAT">Lateral</option>
-              <option value="VOL">Volante</option>
-              <option value="MEA">Meia</option>
-              <option value="ATA">Atacante</option>
-              <option value="GOE">Goleiro</option>
-            </select>
-          </div>
-        </form>
-        <p class="muted">A 2ª posição e a idade ajudam o algoritmo a equilibrar zagueiros, meio e atacante entre as idades.</p>
-        <button type="button" id="btnCancelarEdicao" class="link" hidden>Cancelar edição</button>
-        <ul class="lista-jogadores" id="listaJogadores"></ul>
-      </div>
     </section>
 
     <!-- ============================ COMUNICADOS ============================ -->
@@ -208,6 +167,48 @@
         <button id="btnFecharAdmin" type="button" title="Fechar">✕</button>
       </div>
       <div class="card">
+        <div class="card-topo">
+          <h2>Jogadores <span class="muted" id="qtdJogadores"></span></h2>
+        </div>
+        <form id="formJogador" class="form-jogador">
+          <div class="linha-form">
+            <input id="jogNome" type="text" placeholder="Nome" maxlength="60" required>
+            <input id="jogIdade" type="number" min="10" max="100" placeholder="Idade" inputmode="numeric" title="Idade">
+            <select id="jogNota" title="Classe de 5 a 10">
+              <option value="5">Classe 5</option>
+              <option value="6">Classe 6</option>
+              <option value="7" selected>Classe 7</option>
+              <option value="8">Classe 8</option>
+              <option value="9">Classe 9</option>
+              <option value="10">Classe 10</option>
+            </select>
+            <button type="submit" id="btnJogador">Incluir</button>
+          </div>
+          <div class="linha-form">
+            <select id="jogPosicao" title="Posição principal">
+              <option value="ZAG">Zagueiro</option>
+              <option value="LAT">Lateral</option>
+              <option value="VOL">Volante</option>
+              <option value="MEA">Meia</option>
+              <option value="ATA">Atacante</option>
+              <option value="GOE">Goleiro</option>
+            </select>
+            <select id="jogPosicao2" title="2ª posição (opcional)">
+              <option value="">2ª posição (opcional)</option>
+              <option value="ZAG">Zagueiro</option>
+              <option value="LAT">Lateral</option>
+              <option value="VOL">Volante</option>
+              <option value="MEA">Meia</option>
+              <option value="ATA">Atacante</option>
+              <option value="GOE">Goleiro</option>
+            </select>
+          </div>
+        </form>
+        <p class="muted">A 2ª posição e a idade ajudam o algoritmo a equilibrar zagueiros, meio e atacante entre as idades.</p>
+        <button type="button" id="btnCancelarEdicao" class="link" hidden>Cancelar edição</button>
+        <ul class="lista-jogadores" id="listaJogadores"></ul>
+      </div>
+      <div class="card">
         <h2>Identidade</h2>
         <form id="formConfig">
           <label>Nome da pelada
@@ -250,6 +251,19 @@
           </div>
         </div>
       </div>
+      <div class="card">
+        <h2>Segurança</h2>
+        <form id="formSenha">
+          <label>Nova senha do admin
+            <input id="cfgSenha" type="text" maxlength="30" placeholder="mínimo 4 caracteres" autocomplete="new-password">
+          </label>
+          <button type="submit" class="primario">Salvar senha</button>
+        </form>
+        <p class="aviso" id="senhaAviso" hidden></p>
+        <div class="botoes">
+          <button type="button" id="btnSairAdmin" class="secundario">🚪 Sair do admin</button>
+        </div>
+      </div>
       <div class="card rodape">
         <p class="muted">Amigos do Recreio • sistema da pelada<br>
         Endereço: <span id="enderecoAcesso">…</span></p>
@@ -258,6 +272,21 @@
   </main>
 
   <button id="btnAdmin" class="fab" title="Administração" aria-label="Administração">⚙️</button>
+
+  <div id="loginAdmin" class="modal" hidden>
+    <div class="modal-caixa">
+      <h2>🔒 Área do admin</h2>
+      <p class="muted">Informe a senha para acessar o cadastro e os ajustes.</p>
+      <form id="formLogin">
+        <input id="loginSenha" type="password" placeholder="Senha" autocomplete="current-password" required>
+        <div class="botoes">
+          <button type="submit" class="primario">Entrar</button>
+          <button type="button" id="loginCancelar" class="secundario">Cancelar</button>
+        </div>
+      </form>
+      <p class="aviso" id="loginAviso" hidden></p>
+    </div>
+  </div>
 
   <div id="lightbox" class="lightbox" hidden>
     <button class="fechar" id="lightboxFechar">✕</button>

@@ -1,12 +1,25 @@
+import hmac
 import io
 import os
 import random
 import re
+import secrets
 import sqlite3
 import uuid
 from datetime import datetime, time as dtime, timedelta, timezone
+from functools import wraps
 
-from flask import Flask, abort, g, jsonify, render_template, request, send_file, send_from_directory
+from flask import (
+    Flask,
+    abort,
+    g,
+    jsonify,
+    render_template,
+    request,
+    send_file,
+    send_from_directory,
+    session,
+)
 from werkzeug.utils import secure_filename
 
 try:
@@ -24,8 +37,8 @@ UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 FOTOS_DIR = os.path.join(UPLOAD_DIR, "fotos")
 os.makedirs(FOTOS_DIR, exist_ok=True)
 
-NOTAS = ["A", "B", "C", "D", "E"]
-NOTA_VALOR = {"A": 5, "B": 4, "C": 3, "D": 2, "E": 1}
+NOTAS = ["5", "6", "7", "8", "9", "10"]
+NOTA_VALOR = {str(n): n for n in range(5, 11)}
 POSICOES = ["GOE", "ZAG", "LAT", "VOL", "MEA", "ATA"]
 POS_NOME = {
     "GOE": "Goleiro",
@@ -104,7 +117,7 @@ def init_db():
             nome TEXT NOT NULL,
             posicao TEXT NOT NULL DEFAULT 'MEA',
             posicao2 TEXT NOT NULL DEFAULT '',
-            nota TEXT NOT NULL DEFAULT 'C',
+            nota TEXT NOT NULL DEFAULT '7',
             idade INTEGER,
             criado_em TEXT NOT NULL
         );
@@ -123,6 +136,13 @@ def init_db():
             db.commit()
         except sqlite3.OperationalError:
             pass  # coluna já existe
+
+    # notas antigas em letra (A–E) passam para a escala 5–10
+    mapa_nota = {"A": "10", "B": "8", "C": "7", "D": "6", "E": "5"}
+    for tabela in ("jogadores", "presencas"):
+        for letra, numero in mapa_nota.items():
+            db.execute(f"UPDATE {tabela} SET nota=? WHERE nota=?", (numero, letra))
+    db.commit()
     db.close()
 
 
@@ -143,6 +163,23 @@ def faixa_idade(idade):
 init_db()
 
 
+def garantir_secret():
+    """Chave de sessão do admin — criada uma vez e guardada no banco."""
+    db = sqlite3.connect(DB_PATH)
+    row = db.execute("SELECT valor FROM config WHERE chave='session_secret'").fetchone()
+    if row:
+        valor = row[0]
+    else:
+        valor = secrets.token_hex(32)
+        db.execute("INSERT INTO config(chave, valor) VALUES('session_secret', ?)", (valor,))
+        db.commit()
+    db.close()
+    return valor
+
+
+app.secret_key = garantir_secret()
+
+
 def cfg_get(chave, padrao=None):
     row = get_db().execute("SELECT valor FROM config WHERE chave=?", (chave,)).fetchone()
     return row["valor"] if row else padrao
@@ -156,6 +193,54 @@ def cfg_set(chave, valor):
         (chave, valor),
     )
     db.commit()
+
+
+# ---------------------------------------------------------------- admin
+SENHA_PADRAO = "1234"
+
+
+def admin_logado():
+    return bool(session.get("admin"))
+
+
+def exige_admin(fn):
+    """Só entra se o admin estiver com a senha confirmada na sessão."""
+
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not admin_logado():
+            return jsonify(erro="Área restrita — informe a senha do admin."), 401
+        return fn(*args, **kwargs)
+
+    return wrapper
+
+
+@app.route("/api/admin/login", methods=["POST"])
+def admin_login():
+    data = request.get_json(silent=True) or {}
+    senha = str(data.get("senha", ""))
+    if not senha or not hmac.compare_digest(senha, cfg_get("senha_admin", SENHA_PADRAO)):
+        return jsonify(erro="Senha incorreta."), 401
+    session["admin"] = True
+    session.permanent = True
+    return jsonify(ok=True)
+
+
+@app.route("/api/admin/logout", methods=["POST"])
+def admin_logout():
+    session.clear()
+    return jsonify(ok=True)
+
+
+@app.route("/api/admin/senha", methods=["POST"])
+@exige_admin
+def admin_senha():
+    data = request.get_json(silent=True) or {}
+    senha = str(data.get("senha", "")).strip()
+    if len(senha) < 4:
+        return jsonify(erro="A senha precisa ter ao menos 4 caracteres."), 400
+    cfg_set("senha_admin", senha)
+    return jsonify(ok=True)
 
 
 # ---------------------------------------------------------------- datas
@@ -292,7 +377,7 @@ def gerar_times(jogadores, num_times, por_time, goleiro_fixo, seed=None):
     rng = random.Random(seed)
     pool = []
     for j in jogadores:
-        nota = str(j["nota"]).upper()
+        nota = str(j["nota"]).strip()
         posicao = j["posicao"]
         posicao2 = j.get("posicao2") or ""
         idade = j.get("idade")
@@ -309,7 +394,7 @@ def gerar_times(jogadores, num_times, por_time, goleiro_fixo, seed=None):
                 "posicao": posicao,
                 "posicao2": posicao2,
                 "nota": nota,
-                "valor": NOTA_VALOR.get(nota, 3),
+                "valor": NOTA_VALOR.get(nota, 7),
                 "idade": idade,
                 "faixa": faixa,
                 "papel": papel,
@@ -442,10 +527,12 @@ def config_get():
         "horario": cfg_get("horario", "Quintas • 19:30 às 21:30"),
         "quota": cfg_get("quota", "30"),
         "logo": logo_url,
+        "admin": admin_logado(),
     }
 
 
 @app.route("/api/config", methods=["POST"])
+@exige_admin
 def config_post():
     data = request.get_json(silent=True) or {}
     if "nome" in data:
@@ -479,6 +566,7 @@ def qrcode_png():
 
 
 @app.route("/api/config/logo", methods=["POST"])
+@exige_admin
 def config_logo():
     arquivo = request.files.get("logo")
     if not arquivo or not arquivo.filename:
@@ -518,7 +606,7 @@ def validar_jogador(data):
     nome = str(data.get("nome", "")).strip()
     posicao = str(data.get("posicao", "")).strip().upper()
     posicao2 = str(data.get("posicao2", "") or "").strip().upper()
-    nota = str(data.get("nota", "")).strip().upper()
+    nota = str(data.get("nota", "")).strip()
     idade_txt = str(data.get("idade", "") or "").strip()
     if not nome:
         return None, "Informe o nome do jogador."
@@ -530,7 +618,7 @@ def validar_jogador(data):
         if posicao2 == posicao:
             return None, "A 2ª posição deve ser diferente da principal."
     if nota not in NOTAS:
-        return None, "Nota inválida (use A, B, C, D ou E)."
+        return None, "Classe inválida (use um valor de 5 a 10)."
     idade = None
     if idade_txt:
         try:
@@ -555,6 +643,7 @@ def jogadores_get():
 
 
 @app.route("/api/jogadores", methods=["POST"])
+@exige_admin
 def jogadores_post():
     dados, erro = validar_jogador(request.get_json(silent=True) or {})
     if erro:
@@ -569,6 +658,7 @@ def jogadores_post():
 
 
 @app.route("/api/jogadores/<int:pid>", methods=["PUT"])
+@exige_admin
 def jogadores_put(pid):
     dados, erro = validar_jogador(request.get_json(silent=True) or {})
     if erro:
@@ -583,6 +673,7 @@ def jogadores_put(pid):
 
 
 @app.route("/api/jogadores/<int:pid>", methods=["DELETE"])
+@exige_admin
 def jogadores_delete(pid):
     db = get_db()
     db.execute("DELETE FROM jogadores WHERE id=?", (pid,))
@@ -753,7 +844,7 @@ def presencas_post():
         nome = str(data.get("nome", "")).strip()
         posicao = str(data.get("posicao", "")).strip().upper()
         posicao2 = str(data.get("posicao2", "") or "").strip().upper()
-        nota = str(data.get("nota", "") or "C").strip().upper()
+        nota = str(data.get("nota", "") or "7").strip()
         idade_txt = str(data.get("idade", "") or "").strip()
         if not nome:
             return jsonify(erro="Informe o nome do visitante."), 400
@@ -762,7 +853,7 @@ def presencas_post():
         if posicao2 and (posicao2 not in POSICOES or posicao2 == posicao):
             posicao2 = ""
         if nota not in NOTAS:
-            nota = "C"
+            nota = "7"
         idade = None
         if idade_txt:
             try:

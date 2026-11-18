@@ -12,6 +12,7 @@ let geracao = null;
 let edicaoId = null;
 let fotoSelecionada = null;
 let configAtual = null;
+let adminLogado = false;
 
 async function api(metodo, url, body) {
   const opts = { method: metodo, headers: {} };
@@ -26,6 +27,10 @@ async function api(metodo, url, body) {
   const r = await fetch(url, opts);
   let dados = {};
   try { dados = await r.json(); } catch (_) {}
+  if (r.status === 401 && !url.startsWith("/api/admin/login")) {
+    adminLogado = false;
+    pedirSenha();
+  }
   if (!r.ok) throw new Error(dados.erro || "Erro na requisição.");
   return dados;
 }
@@ -99,13 +104,70 @@ $$("#abas .aba-btn").forEach((b) => {
   b.addEventListener("click", () => abrirAba(b.dataset.aba));
 });
 
-$("#btnAdmin").addEventListener("click", () => abrirAba("ajustes"));
+/* ---------------- admin (senha) ---------------- */
+function pedirSenha() {
+  $("#loginSenha").value = "";
+  $("#loginAviso").hidden = true;
+  $("#loginAdmin").hidden = false;
+  setTimeout(() => $("#loginSenha").focus(), 60);
+}
+
+function abrirAdmin() {
+  if (adminLogado) {
+    abrirAba("ajustes");
+    carregarJogadores();
+    return;
+  }
+  pedirSenha();
+}
+
+$("#btnAdmin").addEventListener("click", abrirAdmin);
 $("#btnFecharAdmin").addEventListener("click", () => abrirAba(abaAnterior));
+$("#loginCancelar").addEventListener("click", () => { $("#loginAdmin").hidden = true; });
+$("#loginAdmin").addEventListener("click", (e) => {
+  if (e.target === $("#loginAdmin")) $("#loginAdmin").hidden = true;
+});
+
+$("#formLogin").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const av = $("#loginAviso");
+  av.hidden = true;
+  try {
+    await api("POST", "/api/admin/login", { senha: $("#loginSenha").value });
+    adminLogado = true;
+    $("#loginAdmin").hidden = true;
+    $("#loginSenha").value = "";
+    abrirAba("ajustes");
+    await carregarJogadores();
+  } catch (err) {
+    mostrarAviso(av, err.message);
+  }
+});
+
+$("#btnSairAdmin").addEventListener("click", async () => {
+  try { await api("POST", "/api/admin/logout"); } catch (_) {}
+  adminLogado = false;
+  abrirAba(abaAnterior);
+});
+
+$("#formSenha").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const av = $("#senhaAviso");
+  av.hidden = true;
+  try {
+    await api("POST", "/api/admin/senha", { senha: $("#cfgSenha").value });
+    $("#cfgSenha").value = "";
+    mostrarAviso(av, "Senha alterada!", true);
+  } catch (err) {
+    mostrarAviso(av, err.message);
+  }
+});
 
 /* ---------------- config ---------------- */
 async function carregarConfig() {
   const c = await api("GET", "/api/config");
   configAtual = c;
+  adminLogado = !!c.admin;
   $("#nomePelada").textContent = c.nome;
   $("#subPelada").textContent = c.horario;
   document.title = c.nome;
@@ -332,7 +394,7 @@ function iniciarEdicao(j) {
 function cancelarEdicao() {
   edicaoId = null;
   $("#formJogador").reset();
-  $("#jogNota").value = "B";
+  $("#jogNota").value = "7";
   $("#jogPosicao2").value = "";
   $("#jogIdade").value = "";
   $("#btnJogador").textContent = "Incluir";
@@ -398,7 +460,7 @@ async function carregarPresencas(dataSel) {
     b.type = "button";
     b.className = "chip" + (j.presente ? " ativo" : "");
     b.textContent = j.nome;
-    b.title = `${j.posicao}${j.posicao2 ? "/" + j.posicao2 : ""} • nota ${j.nota}${
+    b.title = `${j.posicao}${j.posicao2 ? "/" + j.posicao2 : ""} • classe ${j.nota}${
       j.idade ? " • " + j.idade + " anos" : ""
     } — ${j.presente ? "remover marcação" : "marcar presença"}`;
     b.onclick = () => alternarPresenca(j);
@@ -470,7 +532,7 @@ $("#formVisitante").addEventListener("submit", async (e) => {
     });
     $("#formVisitante").reset();
     $("#visPosicao").value = "MEA";
-    $("#visNota").value = "C";
+    $("#visNota").value = "7";
     await carregarPresencas($("#presData").value);
   } catch (err) {
     mostrarAviso(av, err.message);
@@ -507,7 +569,7 @@ function linhaResumo(r) {
 function tabelaTime(lista) {
   return `
     <table class="tabela-time">
-      <thead><tr><th>Posição</th><th>Jogador</th><th>Nota</th><th>Idade</th></tr></thead>
+      <thead><tr><th>Posição</th><th>Jogador</th><th>Classe</th><th>Idade</th></tr></thead>
       <tbody>
         ${lista
           .map(
@@ -544,7 +606,7 @@ function renderizarTimes(g) {
       reservas.length ? ` + ${reservas.length} reserva(s)` : ""
     }</p>
     <p class="muted">${origem}</p>
-    <p class="muted">Equilíbrio de todos os grupos: força (nota A–E), papel (goleiro, defesa, meio e atacante) e faixa etária (20-30, 31-40, 41-50, 50+).</p>`;
+    <p class="muted">Equilíbrio de todos os grupos: força (classe 5 a 10), papel (goleiro, defesa, meio e atacante) e faixa etária (20-30, 31-40, 41-50, 50+).</p>`;
   cont.appendChild(cab);
 
   const grade = document.createElement("div");
@@ -627,7 +689,7 @@ function textoTimes(g) {
     arr
       .map(
         (p) =>
-          `• ${p.nome} (${p.posicao2 ? p.posicao + "/" + p.posicao2 : p.posicao}, nota ${p.nota}${
+          `• ${p.nome} (${p.posicao2 ? p.posicao + "/" + p.posicao2 : p.posicao}, classe ${p.nota}${
             p.idade ? `, ${p.idade} anos` : ""
           })`
       )
