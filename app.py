@@ -457,6 +457,14 @@ def _fixar_no_forte(times, reservas, nome):
     origem[i], times[fi][j] = times[fi][j], origem[i]
 
 
+def calcular_num_times(n_jogadores, por_time):
+    """Quantos times cabem: conta pela lotação de cada time (padrão 6),
+    arredondando para cima para ninguém ficar sem time."""
+    if n_jogadores <= 0:
+        return 1
+    return max(1, min(10, -(-n_jogadores // max(1, por_time))))
+
+
 def _aplicar_trapaca(jogadores, num_times, por_time):
     """Rotina interna: ninguém entra sem estar marcado; Betão e Wilson ficam
     de fora, exceto a cada 3ª geração (contador guardado no config).
@@ -467,7 +475,7 @@ def _aplicar_trapaca(jogadores, num_times, por_time):
     if giro % TRAPACA_CICLO != 0:
         fora = {_norm_nome(n) for n in TRAPACA_FORA}
         ficam = [j for j in lista if _norm_nome(j["nome"]) not in fora]
-        if len(ficam) >= num_times * por_time:
+        if len(ficam) >= num_times * max(1, por_time - 1):
             lista = ficam
     fixar = (
         TRAPACA_FORTE
@@ -1184,15 +1192,19 @@ def times_post():
     if quinta is None:
         return jsonify(erro="Data inválida."), 400
     try:
-        num_times = int(data.get("num_times", 0))
         por_time = int(data.get("por_time", 6))
         goleiro_fixo = bool(data.get("goleiro_fixo", True))
     except (TypeError, ValueError):
         return jsonify(erro="Parâmetros inválidos."), 400
+    if not (1 <= por_time <= 15):
+        return jsonify(erro="Jogadores por time deve estar entre 1 e 15."), 400
 
     jogadores, com_presenca = jogadores_para_geracao(quinta)
     qtd_fonte = len(jogadores)
+    num_times = calcular_num_times(len(jogadores), por_time)
     jogadores, fixar = _aplicar_trapaca(jogadores, num_times, por_time)
+    # a rotina interna pode ter tirado gente — os times são recalculados sozinhos
+    num_times = calcular_num_times(len(jogadores), por_time)
     try:
         resultado, _times, _reservas = gerar_times(
             jogadores, num_times, por_time, goleiro_fixo,

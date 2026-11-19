@@ -374,8 +374,6 @@ async function carregarJogadores() {
     };
     ul.appendChild(li);
   });
-  const padrao = Math.max(1, Math.floor(jogadores.length / 6));
-  if (!$("#inpTimes").dataset.tocado) $("#inpTimes").value = padrao;
   atualizarSelectChurrasco();
 }
 
@@ -401,8 +399,6 @@ function cancelarEdicao() {
   $("#btnCancelarEdicao").hidden = true;
 }
 $("#btnCancelarEdicao").addEventListener("click", cancelarEdicao);
-
-$("#inpTimes").addEventListener("input", (e) => { e.target.dataset.tocado = "1"; });
 
 $("#formJogador").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -434,11 +430,17 @@ function atualizarFonteGeracao() {
     el.textContent = "—";
     return;
   }
-  el.textContent =
+  const porTime = parseInt($("#inpPorTime")?.value, 10) || 6;
+  const qtd = d.total > 0 ? d.total : d.jogadores.length;
+  const times = Math.max(1, Math.min(10, Math.ceil(qtd / porTime)));
+  const base =
     d.total > 0
       ? `Vai gerar com quem marcou presença: ${d.total} jogador(es) na quinta ${d.quinta_fmt}.`
       : `Ninguém marcado ainda — será gerado com todos os ${d.jogadores.length} cadastros.`;
+  el.textContent = `${base} ${times} time${times === 1 ? "" : "s"} de ${porTime} (automático).`;
 }
+
+$("#inpPorTime")?.addEventListener("input", atualizarFonteGeracao);
 
 async function carregarPresencas(dataSel) {
   const url = dataSel ? "/api/presencas?data=" + dataSel : "/api/presencas";
@@ -658,12 +660,20 @@ $("#btnGerar").addEventListener("click", async () => {
     geracao = await api("POST", "/api/times", {
       acao: "gerar",
       data: $("#presData").value || undefined,
-      num_times: parseInt($("#inpTimes").value, 10),
-      por_time: parseInt($("#inpPorTime").value, 10),
+      por_time: parseInt($("#inpPorTime").value, 10) || 6,
       goleiro_fixo: $("#chkGoleiroFixo").checked,
       seed: Date.now(),
     });
     renderizarTimes(geracao);
+    const nt = (geracao.times || []).length;
+    const tot =
+      (geracao.times || []).reduce((s, t) => s + (t.jogadores || []).length, 0) +
+      (geracao.reservas || []).length;
+    mostrarAviso(
+      av,
+      `${nt} time${nt === 1 ? "" : "s"} gerado${nt === 1 ? "" : "s"} • ${tot} jogador(es)${geracao.reservas?.length ? ` • ${geracao.reservas.length} reserva(s)` : ""}.`,
+      true
+    );
   } catch (err) {
     mostrarAviso(av, err.message);
   }
