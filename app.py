@@ -388,7 +388,7 @@ def _norm_nome(s):
 TRAPACA_NORMS = {_norm_nome(n) for n in (TRAPACA_FORTE,) + TRAPACA_FORA}
 
 
-def _espalsar_especiais(times, pool, por_time):
+def _espalsar_especiais(times, pool, alvos):
     """Dinho, Betão e Wilson, quando estão no sorteio, começam um em cada
     time (round-robin); o resto do sorteio equilibra em volta."""
     especiais = [p for p in pool if _norm_nome(p["nome"]) in TRAPACA_NORMS]
@@ -399,7 +399,7 @@ def _espalsar_especiais(times, pool, por_time):
     for k, p in enumerate(especiais):
         for vez in range(len(times)):
             i = (k + vez) % len(times)
-            if len(times[i]) < por_time:
+            if len(times[i]) < alvos[i]:
                 times[i].append(p)
                 break
         else:
@@ -465,6 +465,15 @@ def calcular_num_times(n_jogadores, por_time):
     return max(1, min(10, -(-n_jogadores // max(1, por_time))))
 
 
+def alvos_times(n_jogadores, num_times, por_time):
+    """Tamanho de cada time: todos lotados com por_time e a sobra inteira
+    no último time. Só vira reserva o que estourar o limite de times."""
+    sobra = n_jogadores - por_time * (num_times - 1)
+    if sobra > por_time:
+        return [por_time] * num_times
+    return [por_time] * (num_times - 1) + [max(1, sobra)]
+
+
 def _aplicar_trapaca(jogadores, num_times, por_time):
     """Rotina interna: ninguém entra sem estar marcado; Betão e Wilson ficam
     de fora, exceto a cada 3ª geração (contador guardado no config).
@@ -524,20 +533,34 @@ def gerar_times(jogadores, num_times, por_time, goleiro_fixo, seed=None, fixar=N
     pool.sort(key=lambda p: -p["valor"])
 
     times = [[] for _ in range(num_times)]
+    alvos = alvos_times(len(jogadores), num_times, por_time)
 
     if not goleiro_fixo:
         goleiros = [p for p in pool if p["posicao"] == "GOE"]
         nao_goe = [p for p in pool if p["posicao"] != "GOE"]
+        sem_vaga = []
         for i, gk in enumerate(goleiros[:num_times]):
-            if len(times[i]) < por_time:
+            if len(times[i]) < alvos[i]:
                 times[i].append(gk)
-        pool = nao_goe + goleiros[num_times:]
+            else:
+                sem_vaga.append(gk)
+        pool = nao_goe + sem_vaga + goleiros[num_times:]
         pool.sort(key=lambda p: -p["valor"])
 
-    pool = _espalsar_especiais(times, pool, por_time)
+    pool = _espalsar_especiais(times, pool, alvos)
 
-    caps = [por_time - len(t) for t in times]
-    res_cap = max(0, len(pool) - sum(caps))
+    caps = [max(0, alvos[i] - len(t)) for i, t in enumerate(times)]
+    sobrando = len(pool) - sum(caps)
+    if sobrando > 0:
+        # quem já lotou não encolhe: a folga vai para os times que ainda recebem
+        for i in range(num_times):
+            if sobrando <= 0:
+                break
+            livre = por_time - (len(times[i]) + caps[i])
+            add = min(livre, sobrando)
+            caps[i] += add
+            sobrando -= add
+    res_cap = max(0, sobrando)
     tamanhos = list(caps) + ([res_cap] if res_cap > 0 else [])
 
     grupos = _deal(pool, tamanhos)
