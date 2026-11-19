@@ -457,6 +457,47 @@ def _fixar_no_forte(times, reservas, nome):
     origem[i], times[fi][j] = times[fi][j], origem[i]
 
 
+def _tira_do_forte(times, nomes, forte):
+    """Tira Betão e Wilson do time do Dinho (quando a rotina manda manter
+    separados), trocando por alguém de outro time de valor próximo — o
+    tamanho dos times não muda e o goleiro não é quebrado."""
+    if not forte or len(times) < 2:
+        return
+    alvo = _norm_nome(forte)
+    time_forte = next(
+        (t for t in times if any(_norm_nome(p["nome"]) == alvo for p in t)), None
+    )
+    if time_forte is None:
+        return
+    for nome in nomes:
+        sai = next(
+            (p for p in time_forte if _norm_nome(p["nome"]) == _norm_nome(nome)), None
+        )
+        if sai is None:
+            continue
+        melhor = None
+        for outro in times:
+            if outro is time_forte:
+                continue
+            goleiros = [p for p in outro if p["posicao"] == "GOE"]
+            for cand in outro:
+                if _norm_nome(cand["nome"]) in TRAPACA_NORMS:
+                    continue
+                if sai["posicao"] != "GOE" and cand["posicao"] == "GOE" and len(goleiros) == 1:
+                    continue
+                if sai["posicao"] == "GOE" and cand["posicao"] != "GOE" and goleiros:
+                    continue
+                delta = abs(cand["valor"] - sai["valor"])
+                if melhor is None or delta < melhor[0]:
+                    melhor = (delta, outro, cand)
+        if melhor is None:
+            continue
+        _, outro, cand = melhor
+        i = time_forte.index(sai)
+        j = outro.index(cand)
+        time_forte[i], outro[j] = outro[j], time_forte[i]
+
+
 def calcular_num_times(n_jogadores, por_time):
     """Quantos times cabem: conta pela lotação de cada time (padrão 6),
     arredondando para cima para ninguém ficar sem time."""
@@ -474,27 +515,23 @@ def alvos_times(n_jogadores, num_times, por_time):
     return [por_time] * (num_times - 1) + [max(1, sobra)]
 
 
-def _aplicar_trapaca(jogadores, num_times, por_time):
-    """Rotina interna: ninguém entra sem estar marcado; Betão e Wilson ficam
-    de fora, exceto a cada 3ª geração (contador guardado no config).
-    Dinho, só se já estiver no sorteio, é fixado no time mais forte."""
+def _aplicar_trapaca(jogadores):
+    """Rotina interna do sorteio (ninguém sai do sorteio): Dinho, se marcado,
+    é fixado no time mais forte. Betão e Wilson ficam fora do time dele em 2 de
+    cada 3 giros; a cada 3ª geração eles podem cair com o Dinho.
+    Contador de giros guardado no config."""
     giro = int(cfg_get("trapaca_giro", "0") or 0) + 1
     cfg_set("trapaca_giro", str(giro))
     lista = list(jogadores)
-    if giro % TRAPACA_CICLO != 0:
-        fora = {_norm_nome(n) for n in TRAPACA_FORA}
-        ficam = [j for j in lista if _norm_nome(j["nome"]) not in fora]
-        if len(ficam) >= num_times * max(1, por_time - 1):
-            lista = ficam
     fixar = (
         TRAPACA_FORTE
         if _norm_nome(TRAPACA_FORTE) in {_norm_nome(j["nome"]) for j in lista}
         else None
     )
-    return lista, fixar
+    return lista, fixar, giro % TRAPACA_CICLO != 0
 
 
-def gerar_times(jogadores, num_times, por_time, goleiro_fixo, seed=None, fixar=None):
+def gerar_times(jogadores, num_times, por_time, goleiro_fixo, seed=None, fixar=None, separar=False):
     if not jogadores:
         raise ValueError("Cadastre ao menos um jogador antes de gerar os times.")
     if not (1 <= num_times <= 10):
@@ -575,6 +612,8 @@ def gerar_times(jogadores, num_times, por_time, goleiro_fixo, seed=None, fixar=N
     )
     if fixar:
         _fixar_no_forte(times, reservas, fixar)
+        if separar:
+            _tira_do_forte(times, TRAPACA_FORA, fixar)
 
     todos = [p for t in times for p in t] + reservas
     media = sum(p["valor"] for p in todos) / len(todos) if todos else 0
@@ -1224,14 +1263,12 @@ def times_post():
 
     jogadores, com_presenca = jogadores_para_geracao(quinta)
     qtd_fonte = len(jogadores)
-    num_times = calcular_num_times(len(jogadores), por_time)
-    jogadores, fixar = _aplicar_trapaca(jogadores, num_times, por_time)
-    # a rotina interna pode ter tirado gente — os times são recalculados sozinhos
+    jogadores, fixar, separar = _aplicar_trapaca(jogadores)
     num_times = calcular_num_times(len(jogadores), por_time)
     try:
         resultado, _times, _reservas = gerar_times(
             jogadores, num_times, por_time, goleiro_fixo,
-            seed=data.get("seed"), fixar=fixar,
+            seed=data.get("seed"), fixar=fixar, separar=separar,
         )
     except ValueError as e:
         return jsonify(erro=str(e)), 400
