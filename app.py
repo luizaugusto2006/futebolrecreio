@@ -22,6 +22,9 @@ from flask import (
     session,
 )
 from werkzeug.utils import secure_filename
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
 try:
     import pillow_heif
@@ -793,6 +796,7 @@ def linha_jogador(row):
         "faixa": faixa,
         "faixa_nome": FAIXA_NOME.get(faixa, "—") if faixa else "—",
         "papel": PAPEL.get(row["posicao"], "MEI"),
+        "criado_em": row["criado_em"],
     }
 
 
@@ -873,6 +877,92 @@ def jogadores_delete(pid):
     db.execute("DELETE FROM jogadores WHERE id=?", (pid,))
     db.commit()
     return jsonify(ok=True)
+
+
+# ---------------------------------------------------------------- exportacao
+CAMPOS_EXPORT = [
+    ("nome", "Nome"),
+    ("posicao", "Posição"),
+    ("posicao2", "2ª posição"),
+    ("nota", "Classe"),
+    ("idade", "Idade"),
+    ("faixa", "Faixa etária"),
+    ("papel", "Papel"),
+    ("criado_em", "Cadastrado em"),
+]
+
+
+def valor_export(row, campo):
+    if campo == "nome":
+        return row["nome"]
+    if campo == "posicao":
+        return POS_NOME.get(row["posicao"], row["posicao"])
+    if campo == "posicao2":
+        return POS_NOME.get(row["posicao2"], row["posicao2"]) if row["posicao2"] else ""
+    if campo == "nota":
+        return row["nota"]
+    if campo == "idade":
+        return row["idade"] if row["idade"] is not None else ""
+    if campo == "faixa":
+        f = faixa_idade(row["idade"])
+        return FAIXA_NOME.get(f, "—") if f else "—"
+    if campo == "papel":
+        return PAPEL_NOME.get(PAPEL.get(row["posicao"], "MEI"), "Meio")
+    if campo == "criado_em":
+        txt = str(row["criado_em"] or "")
+        if len(txt) >= 10 and txt[4] == "-" and txt[7] == "-":
+            return f"{txt[8:10]}/{txt[5:7]}/{txt[0:4]}"
+        return txt
+    return ""
+
+
+@app.route("/api/jogadores/export", methods=["POST"])
+@exige_admin
+def jogadores_export():
+    data = request.get_json(silent=True) or {}
+    pedidos = data.get("campos") or []
+    mapa = dict(CAMPOS_EXPORT)
+    campos = [c for c, _ in CAMPOS_EXPORT if c in pedidos]
+    if not campos:
+        return jsonify(erro="Selecione ao menos um campo para exportar."), 400
+    rows = get_db().execute("SELECT * FROM jogadores ORDER BY nome COLLATE NOCASE").fetchall()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Jogadores"
+    fill = PatternFill("solid", fgColor="0B1B38")
+    font = Font(bold=True, color="FFFFFF")
+    linha_borda = Border(bottom=Side(style="thin", color="B7C4D6"))
+    for col, campo in enumerate(campos, 1):
+        c = ws.cell(row=1, column=col, value=mapa[campo])
+        c.fill = fill
+        c.font = font
+        c.alignment = Alignment(horizontal="center", vertical="center")
+    for i, row in enumerate(rows, 2):
+        for col, campo in enumerate(campos, 1):
+            c = ws.cell(row=i, column=col, value=valor_export(row, campo))
+            c.border = linha_borda
+            if campo in ("nota", "idade", "faixa"):
+                c.alignment = Alignment(horizontal="center")
+    for col, campo in enumerate(campos, 1):
+        larguras = [len(str(mapa[campo]))] + [len(str(valor_export(r, campo))) for r in rows]
+        ws.column_dimensions[get_column_letter(col)].width = min(
+            42, max(10, max(larguras, default=10) + 3)
+        )
+    ws.freeze_panes = "A2"
+    if rows:
+        ws.auto_filter.ref = ws.dimensions
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    nome = f"jogadores-{datetime.now().strftime('%Y-%m-%d')}.xlsx"
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=nome,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 # ---------------------------------------------------------------- churrasco

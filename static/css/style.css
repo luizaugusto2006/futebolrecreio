@@ -656,6 +656,15 @@ button:not(:disabled):active { transform: translateY(3px); }
   border-color: transparent;
   box-shadow: 0 3px 0 #0b1b38;
 }
+.campo-export { display: inline-flex; align-items: center; gap: 6px; user-select: none; }
+.campo-export input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+.campo-export.ativo input { accent-color: #7dd3fc; }
 
 .lightbox {
   position: fixed;

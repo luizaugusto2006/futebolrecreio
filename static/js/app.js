@@ -419,6 +419,135 @@ $("#formJogador").addEventListener("submit", async (e) => {
   }
 });
 
+/* ---------------- exportar listagem ---------------- */
+const CAMPOS_EXPORT = [
+  ["nome", "Nome"],
+  ["posicao", "Posição"],
+  ["posicao2", "2ª posição"],
+  ["nota", "Classe"],
+  ["idade", "Idade"],
+  ["faixa", "Faixa etária"],
+  ["papel", "Papel"],
+  ["criado_em", "Cadastrado em"],
+];
+
+function montarChipsExport() {
+  const cont = $("#chipsExport");
+  if (!cont) return;
+  cont.innerHTML = "";
+  CAMPOS_EXPORT.forEach(([valor, rotulo]) => {
+    const lab = document.createElement("label");
+    lab.className = "chip campo-export ativo";
+    lab.innerHTML = `<input type="checkbox" value="${valor}" checked> <span>${rotulo}</span>`;
+    lab.querySelector("input").addEventListener("change", (e) => {
+      lab.classList.toggle("ativo", e.target.checked);
+    });
+    cont.appendChild(lab);
+  });
+}
+montarChipsExport();
+
+function camposExport() {
+  return $$("#chipsExport input:checked").map((i) => i.value);
+}
+
+function valorCampoExport(j, campo) {
+  if (campo === "nome") return j.nome;
+  if (campo === "posicao") return j.pos_nome || j.posicao;
+  if (campo === "posicao2") return j.posicao2 ? j.pos_nome2 || j.posicao2 : "";
+  if (campo === "nota") return j.nota ? "Classe " + j.nota : "";
+  if (campo === "idade") return j.idade ? j.idade + " anos" : "";
+  if (campo === "faixa") return j.faixa_nome && j.faixa_nome !== "—" ? j.faixa_nome + " anos" : "";
+  if (campo === "papel") return PAPEL_NOME[j.papel] || j.papel;
+  if (campo === "criado_em") {
+    const t = String(j.criado_em || "");
+    return /^\d{4}-\d{2}-\d{2}/.test(t) ? fmtData(t.slice(0, 10)) : "";
+  }
+  return "";
+}
+
+function textoExport() {
+  const campos = camposExport();
+  const nome = (configAtual && configAtual.nome) || "Pelada";
+  let txt = `📋 *JOGADORES — ${nome.toUpperCase()}*\n${jogadores.length} cadastrado(s) • gerado em ${fmtData(hojeIso())}\n\n`;
+  jogadores.forEach((j, i) => {
+    const partes = campos
+      .map((c) => (c === "nome" ? `*${j.nome}*` : valorCampoExport(j, c)))
+      .filter((v) => v !== "" && v != null);
+    txt += `${i + 1}. ${partes.join(" • ")}\n`;
+  });
+  return txt;
+}
+
+function avisoExport(txt, ok = false) {
+  mostrarAviso($("#exportAviso"), txt, ok);
+}
+
+function validaExport() {
+  if (!jogadores.length) {
+    avisoExport("Nenhum jogador cadastrado para exportar.");
+    return null;
+  }
+  if (!camposExport().length) {
+    avisoExport("Marque ao menos um campo.");
+    return null;
+  }
+  return true;
+}
+
+$("#btnExportExcel").addEventListener("click", async () => {
+  if (!validaExport()) return;
+  const btn = $("#btnExportExcel");
+  btn.disabled = true;
+  try {
+    const r = await fetch("/api/jogadores/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ campos: camposExport() }),
+    });
+    if (r.status === 401) {
+      adminLogado = false;
+      pedirSenha();
+      throw new Error("Sessão expirada — informe a senha do admin.");
+    }
+    if (!r.ok) {
+      let msg = "Erro ao gerar a planilha.";
+      try {
+        const d = await r.json();
+        if (d.erro) msg = d.erro;
+      } catch (_) {}
+      throw new Error(msg);
+    }
+    const blob = await r.blob();
+    const cd = r.headers.get("Content-Disposition") || "";
+    const m = cd.match(/filename="?([^";]+)"?/);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = m ? m[1] : "jogadores.xlsx";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    avisoExport(`Planilha gerada com ${jogadores.length} jogador(es)!`, true);
+  } catch (err) {
+    avisoExport(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("#btnExportWhats").addEventListener("click", () => {
+  if (!validaExport()) return;
+  window.open("https://wa.me/?text=" + encodeURIComponent(textoExport()), "_blank");
+});
+
+$("#btnExportCopiar").addEventListener("click", async () => {
+  if (!validaExport()) return;
+  const ok = await copiarTexto(textoExport());
+  avisoExport(ok ? "Texto copiado!" : "Não foi possível copiar.", ok);
+});
+
 /* ---------------- presenças ---------------- */
 let presencaInfo = null;
 

@@ -206,6 +206,17 @@
         <ul class="lista-jogadores" id="listaJogadores"></ul>
       </div>
       <div class="card">
+        <h2>Exportar listagem</h2>
+        <p class="muted">Marque os campos e gere a planilha do Excel ou o texto para o WhatsApp.</p>
+        <div class="chips" id="chipsExport"></div>
+        <div class="botoes">
+          <button type="button" id="btnExportExcel" class="primario">📊 Baixar Excel</button>
+          <button type="button" id="btnExportWhats" class="secundario">💬 Enviar no WhatsApp</button>
+          <button type="button" id="btnExportCopiar" class="secundario">📋 Copiar texto</button>
+        </div>
+        <p class="aviso" id="exportAviso" hidden></p>
+      </div>
+      <div class="card">
         <h2>Identidade</h2>
         <form id="formConfig">
           <label>Nome da pelada
