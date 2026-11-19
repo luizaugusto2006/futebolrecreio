@@ -52,6 +52,7 @@ POS_NOME = {
 PAPEL = {"GOE": "GOL", "ZAG": "DEF", "LAT": "DEF", "VOL": "MEI", "MEA": "MEI", "ATA": "ATA"}
 PAPEL_NOME = {"GOL": "Goleiro", "DEF": "Defesa", "MEI": "Meio", "ATA": "Ataque"}
 PAPEIS = ["GOL", "DEF", "MEI", "ATA"]
+ORDEM_POS = {"GOE": 0, "ZAG": 1, "LAT": 1, "VOL": 2, "MEA": 2, "ATA": 3}
 FAIXAS = ["20-30", "31-40", "41-50", "50+"]
 FAIXA_NOME = {"20-30": "20 a 30", "31-40": "31 a 40", "41-50": "41 a 50", "50+": "50+"}
 EXT_IMG = {"png", "jpg", "jpeg", "gif", "webp", "heic", "heif"}
@@ -645,13 +646,13 @@ def gerar_times(jogadores, num_times, por_time, goleiro_fixo, seed=None, fixar=N
 
 def montar_grupo(g):
     out = []
-    for k, p in enumerate(g, start=1):
+    for p in g:
         pos2 = p.get("posicao2") or ""
         faixa = p.get("faixa")
         papel = p.get("papel", "MEI")
         out.append(
             {
-                "num": k,
+                "num": 0,
                 "nome": p["nome"],
                 "posicao": p["posicao"],
                 "posicao2": pos2,
@@ -665,6 +666,10 @@ def montar_grupo(g):
                 "papel_nome": PAPEL_NOME.get(papel, "—"),
             }
         )
+    # tabela na ordem: zagueiro, meia e atacante por último (goleiro no topo)
+    out.sort(key=lambda p: ORDEM_POS.get(p["posicao"], 4))
+    for k, p in enumerate(out, start=1):
+        p["num"] = k
     return out
 
 
